@@ -96,14 +96,30 @@ public class EntryController {
     return service.confirm(SecurityUtils.currentUser(), id);
   }
 
-  /** Xuất dữ liệu nháp (JSON) để nhập vào ERP thủ công; hệ thống không ghi ERP. */
+  /**
+   * Xuất dữ liệu nháp: json (mặc định) hoặc xlsx, để nhập vào ERP thủ công; hệ thống không ghi ERP.
+   */
   @GetMapping("/{id}/export")
-  public EntryDraftResponse export(
+  public ResponseEntity<?> export(
       @PathVariable UUID id, @RequestParam(defaultValue = "json") String format) {
-    if (!"json".equalsIgnoreCase(format)) {
-      throw new BusinessException("ENTRY_EXPORT_FORMAT_UNSUPPORTED", "Hiện chỉ hỗ trợ format=json");
-    }
-    return service.get(SecurityUtils.currentUser(), id);
+    var user = SecurityUtils.currentUser();
+    return switch (format.toLowerCase()) {
+      case "json" -> ResponseEntity.ok(service.get(user, id));
+      case "xlsx" ->
+          ResponseEntity.ok()
+              .contentType(
+                  MediaType.parseMediaType(vn.edu.uet.erpai.common.export.XlsxWriter.CONTENT_TYPE))
+              .header(
+                  org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                  org.springframework.http.ContentDisposition.attachment()
+                      .filename("nhap-lieu-" + id + ".xlsx")
+                      .build()
+                      .toString())
+              .body(service.exportXlsx(user, id));
+      default ->
+          throw new BusinessException(
+              "ENTRY_EXPORT_FORMAT_UNSUPPORTED", "format phải là json hoặc xlsx");
+    };
   }
 
   @DeleteMapping("/{id}")

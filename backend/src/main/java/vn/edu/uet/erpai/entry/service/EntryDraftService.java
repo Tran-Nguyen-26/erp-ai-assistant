@@ -467,4 +467,99 @@ public class EntryDraftService {
   private static String str(BigDecimal v) {
     return v == null ? "0" : v.toPlainString();
   }
+
+  /**
+   * Xuất nháp ra .xlsx (hóa đơn, dòng hàng, định khoản gợi ý, kết quả kiểm tra) để nhập ERP thủ
+   * công.
+   */
+  @Transactional(readOnly = true)
+  public byte[] exportXlsx(CurrentUser user, UUID id) {
+    var d = find(user, id);
+    var data = readData(d);
+    var inv = data.invoice();
+    var rows = new ArrayList<List<String>>();
+    var bold = new java.util.HashSet<Integer>();
+    java.util.function.Consumer<String> section =
+        title -> {
+          if (!rows.isEmpty()) rows.add(List.of());
+          bold.add(rows.size());
+          rows.add(List.of(title));
+        };
+    java.util.function.Consumer<List<String>> head =
+        h -> {
+          bold.add(rows.size());
+          rows.add(h);
+        };
+    section.accept("Hóa đơn nhập liệu (" + d.getSourceType() + ", " + d.getStatus() + ")");
+    rows.add(List.of("Mẫu số", n(inv.invoiceTemplate())));
+    rows.add(List.of("Ký hiệu", n(inv.invoiceSeries())));
+    rows.add(List.of("Số hóa đơn", n(inv.invoiceNo())));
+    rows.add(List.of("Ngày hóa đơn", n(inv.invoiceDate())));
+    rows.add(List.of("Người bán", n(inv.sellerName())));
+    rows.add(List.of("MST người bán", n(inv.sellerTaxCode())));
+    rows.add(List.of("Người mua", n(inv.buyerName())));
+    rows.add(List.of("MST người mua", n(inv.buyerTaxCode())));
+    rows.add(List.of("Tiền hàng", n(inv.totalBeforeTax())));
+    rows.add(List.of("Tiền thuế", n(inv.totalVat())));
+    rows.add(List.of("Tổng thanh toán", n(inv.totalPayable()) + " " + n(inv.currency())));
+    var partner = data.partnerMatch();
+    rows.add(
+        List.of(
+            "Nhà cung cấp trong ERP",
+            partner == null || partner.found() == null
+                ? "Chưa kiểm tra"
+                : partner.found() ? partner.code() + " - " + partner.name() : "Chưa có"));
+
+    section.accept("Dòng hàng");
+    head.accept(
+        List.of(
+            "STT",
+            "Diễn giải",
+            "ĐVT",
+            "Số lượng",
+            "Đơn giá",
+            "Thành tiền",
+            "Thuế suất",
+            "Tiền thuế"));
+    inv.lines()
+        .forEach(
+            l ->
+                rows.add(
+                    List.of(
+                        String.valueOf(l.lineNo()),
+                        n(l.description()),
+                        n(l.unit()),
+                        n(l.quantity()),
+                        n(l.unitPrice()),
+                        n(l.amount()),
+                        l.vatLabel() != null ? l.vatLabel() : n(l.vatRate()),
+                        n(l.vatAmount()))));
+
+    section.accept("Gợi ý định khoản (cần kế toán xác nhận)");
+    head.accept(List.of("Nợ", "Có", "Số tiền", "Lý do", "Tin cậy"));
+    readEntries(d)
+        .forEach(
+            e ->
+                rows.add(
+                    List.of(
+                        e.debitAccount(),
+                        e.creditAccount(),
+                        e.amount(),
+                        e.reason(),
+                        String.valueOf(e.confidence()))));
+
+    section.accept("Kết quả kiểm tra rule");
+    head.accept(List.of("Rule", "Mức độ", "Thông điệp"));
+    var validation =
+        mapper.convertValue(d.getValidation(), new TypeReference<List<ValidationItem>>() {});
+    if (validation.isEmpty()) {
+      rows.add(List.of("Không có cảnh báo"));
+    }
+    validation.forEach(v -> rows.add(List.of(v.ruleId(), v.severity(), v.message())));
+    return vn.edu.uet.erpai.common.export.XlsxWriter.write("Nhập liệu", rows, bold);
+  }
+
+  private static String n(Object o) {
+    return o == null ? "" : o.toString();
+  }
 }

@@ -37,8 +37,16 @@ import { ProposalResponse } from '../../core/models/violation.model';
           </mat-select></mat-form-field
         >
         @if (auth.hasRole('CHIEF_ACCOUNTANT', 'ADMIN')) {
+          <mat-form-field appearance="outline">
+            <mat-label>Định dạng</mat-label>
+            <mat-select [(ngModel)]="format">
+              @for (f of formats; track f) {
+                <mat-option [value]="f">{{ f }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
           <button mat-stroked-button (click)="export()" [disabled]="!selected().size">
-            Xuất phiếu đề nghị (CSV) — {{ selected().size }}
+            Xuất phiếu đề nghị — {{ selected().size }}
           </button>
         }
       </div>
@@ -106,6 +114,8 @@ export class ProposalListComponent implements OnInit {
   protected readonly items = signal<ProposalResponse[]>([]);
   protected readonly selected = signal<Set<string>>(new Set());
   protected status = 'PENDING';
+  protected readonly formats = ['CSV', 'XLSX', 'PDF'] as const;
+  protected format: 'CSV' | 'XLSX' | 'PDF' = 'XLSX';
 
   ngOnInit(): void {
     this.load();
@@ -133,14 +143,14 @@ export class ProposalListComponent implements OnInit {
   }
 
   protected export(): void {
-    this.api.export([...this.selected()]).subscribe({
+    this.api.export([...this.selected()], this.format).subscribe({
       next: (res) => {
         const url = URL.createObjectURL(res.body as Blob);
         const a = document.createElement('a');
         a.href = url;
         a.download =
           /filename="?([^";]+)"?/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ??
-          'phieu-de-nghi.csv';
+          `phieu-de-nghi.${this.format.toLowerCase()}`;
         a.click();
         URL.revokeObjectURL(url);
         this.load();

@@ -1,0 +1,4 @@
+DejaVu Sans (c) Bitstream, Inc. and Tavmjong Bah. Distributed under the Bitstream Vera / DejaVu free license,
+which permits use, copying, modification and redistribution (including embedding in documents).
+Full text: https://dejavu-fonts.github.io/License.html
+Dùng để nhúng vào PDF xuất ra, bảo đảm hiển thị đúng tiếng Việt.

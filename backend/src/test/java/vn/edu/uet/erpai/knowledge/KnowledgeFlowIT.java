@@ -170,7 +170,38 @@ class KnowledgeFlowIT extends AbstractPostgresIT {
 
     var current = upload(admin, "current.txt", CURRENT_LAW, "LUAT-2025", "2025-01-01", null, 202);
     var old = upload(admin, "old.txt", OLD_LAW, "LUAT-2020", "2020-01-01", "2025-01-01", 202);
-    var bad = upload(admin, "scan.docx", "x", "BAD", null, null, 202);
+    var bad = upload(admin, "scan.docx", "x", "BAD", null, null, 202); // không phải ZIP DOCX hợp lệ
+    var docx =
+        mvc.perform(
+                multipart("/api/v1/knowledge/documents")
+                    .file(
+                        new MockMultipartFile(
+                            "file",
+                            "luat.docx",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            DocxParserTest.docx(
+                                DocxParserTest.paragraphs(
+                                    "Điều 20. Hóa đơn điện tử",
+                                    "1. Hóa đơn điện tử phải có chữ ký số của người bán."))))
+                    .param("title", "LUAT-DOCX")
+                    .param("docNumber", "LUAT-DOCX")
+                    .param("docType", "LAW")
+                    .header("Authorization", admin))
+            .andExpect(status().isAccepted())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    var docxId = mapper.readTree(docx).get("id").asText();
+    await().atMost(15, TimeUnit.SECONDS).until(() -> statusOf(admin, docxId).equals("READY"));
+    var docxChunks =
+        mapper.readTree(
+            mvc.perform(
+                    get("/api/v1/knowledge/documents/" + docxId + "/chunks")
+                        .header("Authorization", admin))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    assertThat(docxChunks.get(0).get("headingPath").asText()).isEqualTo("Điều 20. Hóa đơn điện tử");
 
     for (var id :
         new String[] {current.get("id").asText(), old.get("id").asText(), bad.get("id").asText()}) {

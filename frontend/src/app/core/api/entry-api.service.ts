@@ -38,6 +38,14 @@ export class EntryApiService {
     return this.http.put<EntryDraftResponse>(`${this.base}/${id}`, { invoice, suggestedEntries });
   }
 
+  /** Tải nháp dưới dạng .xlsx (hóa đơn, dòng hàng, định khoản gợi ý, kết quả kiểm tra). */
+  exportXlsx(id: string): Observable<Blob> {
+    return this.http.get(`${this.base}/${id}/export`, {
+      params: new HttpParams().set('format', 'xlsx'),
+      responseType: 'blob',
+    });
+  }
+
   validate(id: string): Observable<EntryDraftResponse> {
     return this.http.post<EntryDraftResponse>(`${this.base}/${id}/validate`, null);
   }

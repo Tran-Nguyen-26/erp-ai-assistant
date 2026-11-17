@@ -168,6 +168,7 @@ const EDITABLE: { key: keyof EntryDraftResponse['invoice']; label: string; type?
           </p>
         } @else {
           <button mat-stroked-button (click)="exportJson(d)">Xuất JSON</button>
+          <button mat-stroked-button (click)="exportXlsx(d)">Xuất Excel</button>
         }
       }
     </div>
@@ -274,6 +275,20 @@ export class EntryDetailComponent implements OnInit {
     }
     this.api.discard(this.id).subscribe({
       next: () => void this.router.navigate(['/entry']),
+      error: (e) => this.toast(errorMessage(e)),
+    });
+  }
+
+  protected exportXlsx(d: EntryDraftResponse): void {
+    this.api.exportXlsx(d.id).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `nhap-lieu-${d.invoice.invoiceSeries}-${d.invoice.invoiceNo}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
       error: (e) => this.toast(errorMessage(e)),
     });
   }

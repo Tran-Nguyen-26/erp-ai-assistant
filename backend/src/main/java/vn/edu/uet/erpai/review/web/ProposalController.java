@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import java.net.URI;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -24,6 +23,7 @@ import vn.edu.uet.erpai.common.security.SecurityUtils;
 import vn.edu.uet.erpai.common.web.PageResponse;
 import vn.edu.uet.erpai.review.domain.Proposal.Status;
 import vn.edu.uet.erpai.review.service.CreatorType;
+import vn.edu.uet.erpai.review.service.ExportFormat;
 import vn.edu.uet.erpai.review.service.ProposalResponse;
 import vn.edu.uet.erpai.review.service.ProposalService;
 import vn.edu.uet.erpai.review.service.ProposalService.ChangeRequest;
@@ -109,15 +109,12 @@ public class ProposalController {
     return service.reject(SecurityUtils.currentUser(), id, req == null ? null : req.note());
   }
 
-  /** Hiện xuất CSV; PDF/XLSX theo đặc tả sẽ bổ sung. */
+  /** Xuất phiếu đề nghị điều chỉnh: CSV (mặc định), XLSX hoặc PDF. */
   @PostMapping("/proposals/export")
   @PreAuthorize("hasAnyRole('CHIEF_ACCOUNTANT','ADMIN')")
   public ResponseEntity<byte[]> export(@jakarta.validation.Valid @RequestBody ExportRequest req) {
-    if (req.format() != null && !Set.of("CSV").contains(req.format().toUpperCase())) {
-      throw new vn.edu.uet.erpai.common.exception.BusinessException(
-          "PROPOSAL_EXPORT_FORMAT_UNSUPPORTED", "Hiện chỉ hỗ trợ format CSV");
-    }
-    var file = service.export(SecurityUtils.currentUser(), req.proposalIds());
+    var format = ExportFormat.parse(req.format());
+    var file = service.export(SecurityUtils.currentUser(), req.proposalIds(), format);
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType(file.contentType()))
         .header(

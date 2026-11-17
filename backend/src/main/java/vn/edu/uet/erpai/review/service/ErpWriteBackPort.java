@@ -11,5 +11,5 @@ public interface ErpWriteBackPort {
 
   record ExportedFile(String fileName, String contentType, byte[] content) {}
 
-  ExportedFile export(List<Proposal> approvedProposals);
+  ExportedFile export(List<Proposal> approvedProposals, ExportFormat format);
 }

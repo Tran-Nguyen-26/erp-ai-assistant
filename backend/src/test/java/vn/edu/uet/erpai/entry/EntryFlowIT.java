@@ -195,8 +195,17 @@ class EntryFlowIT extends AbstractPostgresIT {
             get("/api/v1/entry/drafts/" + id + "/export?format=json").header("Authorization", acc))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.invoice.invoiceNo").value("0000124"));
+    var xlsx =
+        mvc.perform(
+                get("/api/v1/entry/drafts/" + id + "/export?format=xlsx")
+                    .header("Authorization", acc))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse();
+    assertThat(xlsx.getContentType()).contains("spreadsheetml");
+    assertThat(xlsx.getContentAsByteArray()).startsWith(new byte[] {'P', 'K'});
     mvc.perform(
-            get("/api/v1/entry/drafts/" + id + "/export?format=xlsx").header("Authorization", acc))
+            get("/api/v1/entry/drafts/" + id + "/export?format=pdf").header("Authorization", acc))
         .andExpect(status().isUnprocessableEntity());
   }
 

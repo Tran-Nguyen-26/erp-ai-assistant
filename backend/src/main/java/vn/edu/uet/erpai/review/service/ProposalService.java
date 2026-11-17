@@ -234,7 +234,8 @@ public class ProposalService {
 
   /** Xuất phiếu đề nghị điều chỉnh cho các đề xuất đã duyệt; đánh dấu EXPORTED. */
   @Transactional
-  public ErpWriteBackPort.ExportedFile export(CurrentUser user, List<UUID> ids) {
+  public ErpWriteBackPort.ExportedFile export(
+      CurrentUser user, List<UUID> ids, ExportFormat format) {
     if (ids == null || ids.isEmpty()) {
       throw new BusinessException("PROPOSAL_EXPORT_EMPTY", "Chưa chọn đề xuất nào");
     }
@@ -251,7 +252,7 @@ public class ProposalService {
             HttpStatus.CONFLICT);
       }
     }
-    var file = writeBack.export(found);
+    var file = writeBack.export(found, format);
     found.forEach(Proposal::markExported);
     audit(user, ActorType.USER, "PROPOSAL_EXPORTED", null, Map.of("count", found.size()));
     return file;

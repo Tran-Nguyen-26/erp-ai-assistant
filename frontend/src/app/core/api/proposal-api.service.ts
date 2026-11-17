@@ -29,11 +29,11 @@ export class ProposalApiService {
     return this.http.post<ProposalResponse>(`${this.base}/${id}/reject`, { note });
   }
 
-  /** Xuất phiếu đề nghị điều chỉnh (CSV). */
-  export(ids: string[]): Observable<HttpResponse<Blob>> {
+  /** Xuất phiếu đề nghị điều chỉnh (CSV, XLSX hoặc PDF). */
+  export(ids: string[], format: 'CSV' | 'XLSX' | 'PDF' = 'CSV'): Observable<HttpResponse<Blob>> {
     return this.http.post(
       `${this.base}/export`,
-      { proposalIds: ids, format: 'CSV' },
+      { proposalIds: ids, format },
       { observe: 'response', responseType: 'blob' },
     );
   }

@@ -195,6 +195,12 @@ class ProposalFlowIT extends AbstractPostgresIT {
     assertThat(export.getContentType()).startsWith("text/csv");
     var csv = export.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
     assertThat(csv).contains("partner.taxCode").contains("12345").contains("0101234567");
+    json(
+            chief2,
+            "/api/v1/proposals/export",
+            "{\"proposalIds\":[\"" + third.get("id").asText() + "\"],\"format\":\"DOCX\"}")
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.code").value("PROPOSAL_EXPORT_FORMAT_UNSUPPORTED"));
     mvc.perform(get("/api/v1/proposals/" + third.get("id").asText()).header("Authorization", acc))
         .andExpect(jsonPath("$.status").value("EXPORTED"));
 
