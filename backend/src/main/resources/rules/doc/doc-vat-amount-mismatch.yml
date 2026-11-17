@@ -1,0 +1,24 @@
+ruleId: DOC_VAT_AMOUNT_MISMATCH
+name: "Tiền thuế GTGT không khớp thuế suất"
+group: DOC
+severity: ERROR
+entityType: PURCHASE_INVOICE
+evaluator: SPEL
+forEach: lines
+params:
+  tolerance: 1        # cho phép lệch do làm tròn (đồng)
+  rateDivisor: 100    # ERP lưu thuế suất dạng phần trăm (10) hay phân số (0.1)? CẦN XÁC NHẬN bằng dữ liệu
+condition: >
+  #item.vatRate >= 0 and
+  #abs(#item.vatAmount - #round(#item.amount * #item.vatRate / #params['rateDivisor'])) > #params['tolerance']
+message: >
+  Dòng {{item.lineNo}}: tiền thuế {{actual}} không khớp {{item.vatRate}}% × {{item.amount}} = {{expected}}
+evidence:
+  lineNo: "#item.lineNo"
+  expected: "#round(#item.amount * #item.vatRate / #params['rateDivisor'])"
+  actual: "#item.vatAmount"
+legalRefs: ["Luật Thuế giá trị gia tăng", "Nghị định về hóa đơn, chứng từ"]
+ragQuery: "cách xác định số thuế GTGT ghi trên hóa đơn"
+# Tắt cho tới khi xác nhận đơn vị của VATRate và các giá trị đặc biệt (KCT, KKKNT) trong ERP.
+enabled: false
+version: 1

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+  <changeSet id="007-create-entry-draft" author="ttn">
+    <sql splitStatements="true"><![CDATA[
+
+CREATE TABLE entry_draft (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id VARCHAR(64) NOT NULL,
+    source_type VARCHAR(10) NOT NULL CHECK (source_type IN ('XML','IMAGE','PDF','TEXT')),
+    source_file_id UUID REFERENCES uploaded_file(id),
+    source_text TEXT,
+    voucher_type VARCHAR(30),
+    extracted_data JSONB NOT NULL,
+    field_confidence JSONB NOT NULL DEFAULT '{}',
+    suggested_entries JSONB NOT NULL DEFAULT '[]',
+    validation JSONB NOT NULL DEFAULT '[]',
+    status VARCHAR(12) NOT NULL CHECK (status IN ('DRAFT','VALIDATED','CONFIRMED','DISCARDED')),
+    created_by UUID NOT NULL REFERENCES app_user(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_entry_draft_user ON entry_draft (created_by, created_at DESC);
+]]>    </sql>
+    <rollback><![CDATA[
+DROP TABLE entry_draft;
+]]>    </rollback>
+  </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+  <changeSet id="005-create-agent" author="ttn">
+    <sql splitStatements="true"><![CDATA[
+
+CREATE TABLE violation_explanation (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    violation_id UUID NOT NULL REFERENCES violation(id) ON DELETE CASCADE,
+    summary TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    citations JSONB NOT NULL DEFAULT '[]',
+    support_status VARCHAR(15) NOT NULL CHECK (support_status IN ('SUPPORTED','PARTIAL','UNSUPPORTED')),
+    confidence NUMERIC(4,3),
+    model VARCHAR(100) NOT NULL,
+    prompt_version VARCHAR(20) NOT NULL,
+    latency_ms INT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_violation_explanation_violation ON violation_explanation (violation_id, created_at DESC);
+CREATE TABLE agent_session (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES app_user(id),
+    company_id VARCHAR(64) NOT NULL,
+    channel VARCHAR(10) NOT NULL CHECK (channel IN ('CHAT','ENTRY','REVIEW')),
+    title VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_activity_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_agent_session_user ON agent_session (user_id, last_activity_at DESC);
+CREATE TABLE agent_message (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES agent_session(id) ON DELETE CASCADE,
+    seq INT NOT NULL,
+    role VARCHAR(10) NOT NULL CHECK (role IN ('USER','ASSISTANT','TOOL','SYSTEM')),
+    content TEXT,
+    tool_name VARCHAR(60),
+    tool_args JSONB,
+    tool_result JSONB,
+    citations JSONB NOT NULL DEFAULT '[]',
+    tokens_in INT,
+    tokens_out INT,
+    latency_ms INT,
+    trace_id VARCHAR(64),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uk_agent_message_session_seq UNIQUE (session_id, seq)
+);
+]]>    </sql>
+    <rollback><![CDATA[
+DROP TABLE agent_message; DROP TABLE agent_session; DROP TABLE violation_explanation;
+]]>    </rollback>
+  </changeSet>
+</databaseChangeLog>

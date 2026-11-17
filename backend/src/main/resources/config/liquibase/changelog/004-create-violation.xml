@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+  <changeSet id="004-create-violation" author="ttn">
+    <sql splitStatements="true"><![CDATA[
+
+CREATE TABLE violation (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rule_definition_id UUID NOT NULL REFERENCES rule_definition(id),
+    rule_version INT NOT NULL,
+    review_job_id UUID REFERENCES review_job(id) ON DELETE SET NULL,
+    company_id VARCHAR(64) NOT NULL,
+    entity_type VARCHAR(30) NOT NULL,
+    entity_ref VARCHAR(100) NOT NULL,
+    entity_no VARCHAR(50),
+    entity_date DATE,
+    severity VARCHAR(10) NOT NULL,
+    status VARCHAR(25) NOT NULL CHECK (status IN ('OPEN','EXPLAINED','PROPOSED','RESOLVED_PENDING_ERP','RESOLVED','DISMISSED')),
+    message TEXT NOT NULL,
+    evidence JSONB NOT NULL,
+    fingerprint CHAR(64) NOT NULL,
+    detected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at TIMESTAMPTZ,
+    dismissed_by UUID REFERENCES app_user(id),
+    dismiss_reason TEXT,
+    CONSTRAINT uk_violation_fingerprint UNIQUE (fingerprint)
+);
+CREATE INDEX idx_violation_company_status ON violation (company_id, status, severity);
+CREATE INDEX idx_violation_entity ON violation (entity_type, entity_ref);
+CREATE INDEX idx_violation_review_job ON violation (review_job_id);
+CREATE INDEX idx_violation_entity_date ON violation (company_id, entity_date);
+]]>    </sql>
+    <rollback><![CDATA[
+DROP TABLE violation;
+]]>    </rollback>
+  </changeSet>
+</databaseChangeLog>

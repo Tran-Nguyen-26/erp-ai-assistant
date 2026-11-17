@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+  <!-- unaccent() không IMMUTABLE nên không dùng được trong generated column; bọc bằng hàm IMMUTABLE. -->
+  <changeSet id="010-knowledge-fulltext" author="ttn">
+    <sql splitStatements="false"><![CDATA[
+CREATE OR REPLACE FUNCTION immutable_unaccent(text) RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT
+    AS $$ SELECT public.unaccent('public.unaccent', $1) $$;
+
+ALTER TABLE knowledge_chunk
+    ADD COLUMN content_tsv tsvector
+    GENERATED ALWAYS AS (to_tsvector('simple', immutable_unaccent(heading_path || ' ' || content))) STORED;
+
+CREATE INDEX idx_knowledge_chunk_tsv ON knowledge_chunk USING gin (content_tsv);
+    ]]></sql>
+    <rollback><![CDATA[
+DROP INDEX idx_knowledge_chunk_tsv;
+ALTER TABLE knowledge_chunk DROP COLUMN content_tsv;
+DROP FUNCTION immutable_unaccent(text);
+    ]]></rollback>
+  </changeSet>
+</databaseChangeLog>

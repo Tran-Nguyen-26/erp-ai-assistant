@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+  <changeSet id="009-create-audit-feedback" author="ttn">
+    <sql splitStatements="true"><![CDATA[
+
+CREATE TABLE audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actor_type VARCHAR(10) NOT NULL CHECK (actor_type IN ('USER','AGENT','SYSTEM')),
+    actor_id VARCHAR(64),
+    company_id VARCHAR(64),
+    action VARCHAR(60) NOT NULL,
+    target_type VARCHAR(40),
+    target_id VARCHAR(100),
+    detail JSONB NOT NULL DEFAULT '{}',
+    trace_id VARCHAR(64),
+    ip_address VARCHAR(45)
+);
+CREATE INDEX idx_audit_log_target ON audit_log (target_type, target_id);
+CREATE INDEX idx_audit_log_time ON audit_log (company_id, occurred_at DESC);
+CREATE TABLE feedback (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    target_type VARCHAR(20) NOT NULL CHECK (target_type IN ('EXPLANATION','ANSWER','PROPOSAL','ENTRY_SUGGESTION')),
+    target_id UUID NOT NULL,
+    user_id UUID NOT NULL REFERENCES app_user(id),
+    rating SMALLINT NOT NULL CHECK (rating IN (-1, 1)),
+    comment TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uk_feedback_target_user UNIQUE (target_type, target_id, user_id)
+);
+]]>    </sql>
+    <rollback><![CDATA[
+DROP TABLE feedback; DROP TABLE audit_log;
+]]>    </rollback>
+  </changeSet>
+</databaseChangeLog>

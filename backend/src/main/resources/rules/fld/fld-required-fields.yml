@@ -1,0 +1,17 @@
+ruleId: FLD_REQUIRED_FIELDS
+name: "Thiếu trường bắt buộc của chứng từ"
+group: FLD
+severity: ERROR
+entityType: PURCHASE_INVOICE
+evaluator: SPEL
+condition: >
+  #isBlank(#entity.voucherNo) or #entity.voucherDate == null or #entity.partner == null
+  or #isBlank(#entity.partner.name)
+message: "Chứng từ thiếu số chứng từ, ngày chứng từ hoặc đối tượng"
+evidence:
+  voucherNo: "#entity.voucherNo"
+  voucherDate: "#entity.voucherDate"
+legalRefs: []
+ragQuery: "nội dung bắt buộc phải có trên chứng từ kế toán"
+enabled: true
+version: 1

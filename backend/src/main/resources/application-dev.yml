@@ -1,0 +1,10 @@
+app:
+  security:
+    jwt:
+      # CHỈ cho dev. Production bắt buộc đặt JWT_SECRET.
+      secret: ${JWT_SECRET:dev-only-secret-dev-only-secret-dev-only-secret-dev-only-secret-0123456789}
+  dev:
+    seed-users: true
+logging:
+  level:
+    vn.edu.uet.erpai: DEBUG

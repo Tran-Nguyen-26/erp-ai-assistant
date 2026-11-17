@@ -1,0 +1,15 @@
+ruleId: XDOC_DUPLICATE_INVOICE
+name: "Hóa đơn đầu vào bị nhập trùng"
+group: XDOC
+severity: ERROR
+entityType: PURCHASE_INVOICE
+evaluator: SQL
+sqlRef: rule-duplicate-invoice          # resources/sql/erp/rule-duplicate-invoice.sql
+sqlParams: [companyId, sellerTaxCode, invoiceSeries, invoiceNo, entityRef]
+message: >
+  Hóa đơn {{invoice.invoiceSeries}}-{{invoice.invoiceNo}} của MST {{invoice.sellerTaxCode}}
+  đã được ghi nhận ở chứng từ {{dup.voucherNo}}
+legalRefs: []
+ragQuery: "xử lý hóa đơn đầu vào bị kê khai trùng"
+enabled: true
+version: 1

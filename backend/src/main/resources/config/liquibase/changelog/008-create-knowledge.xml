@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+  <changeSet id="008-create-knowledge" author="ttn">
+    <sql splitStatements="true"><![CDATA[
+
+CREATE TABLE knowledge_document (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(500) NOT NULL,
+    doc_number VARCHAR(100),
+    doc_type VARCHAR(15) NOT NULL CHECK (doc_type IN ('LAW','DECREE','CIRCULAR','MANUAL','INTERNAL')),
+    issued_date DATE,
+    effective_from DATE,
+    effective_to DATE,
+    superseded_by UUID REFERENCES knowledge_document(id),
+    source_url VARCHAR(1000),
+    file_id UUID REFERENCES uploaded_file(id),
+    status VARCHAR(10) NOT NULL CHECK (status IN ('PENDING','INGESTING','READY','FAILED','ARCHIVED')),
+    chunk_count INT NOT NULL DEFAULT 0,
+    embedding_model VARCHAR(100),
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_knowledge_document_effective ON knowledge_document (status, effective_from, effective_to);
+CREATE TABLE knowledge_chunk (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID NOT NULL REFERENCES knowledge_document(id) ON DELETE CASCADE,
+    chunk_index INT NOT NULL,
+    heading_path TEXT NOT NULL,
+    article_no VARCHAR(20),
+    clause_no VARCHAR(20),
+    content TEXT NOT NULL,
+    token_count INT NOT NULL,
+    embedding vector(1024) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uk_knowledge_chunk_doc_idx UNIQUE (document_id, chunk_index)
+);
+CREATE INDEX idx_knowledge_chunk_embedding ON knowledge_chunk USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_knowledge_chunk_document ON knowledge_chunk (document_id);
+]]>    </sql>
+    <rollback><![CDATA[
+DROP TABLE knowledge_chunk; DROP TABLE knowledge_document;
+]]>    </rollback>
+  </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+  <changeSet id="006-create-proposal" author="ttn">
+    <sql splitStatements="true"><![CDATA[
+
+CREATE TABLE proposal (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    violation_id UUID REFERENCES violation(id) ON DELETE SET NULL,
+    company_id VARCHAR(64) NOT NULL,
+    entity_type VARCHAR(30) NOT NULL,
+    entity_ref VARCHAR(100) NOT NULL,
+    action_type VARCHAR(30) NOT NULL CHECK (action_type IN ('UPDATE_FIELD','ADJUSTMENT_ENTRY','MARK_DUPLICATE','CANCEL_VOUCHER')),
+    before_data JSONB NOT NULL,
+    after_data JSONB NOT NULL,
+    changes JSONB NOT NULL,
+    rationale TEXT NOT NULL,
+    citations JSONB NOT NULL DEFAULT '[]',
+    verification JSONB NOT NULL,
+    status VARCHAR(15) NOT NULL CHECK (status IN ('PENDING','APPROVED','REJECTED','SUPERSEDED','EXPORTED')),
+    created_by_type VARCHAR(10) NOT NULL CHECK (created_by_type IN ('AGENT','USER')),
+    created_by UUID REFERENCES app_user(id),
+    reviewed_by UUID REFERENCES app_user(id),
+    reviewed_at TIMESTAMPTZ,
+    review_note TEXT,
+    exported_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT ck_proposal_reject_note CHECK (status <> 'REJECTED' OR review_note IS NOT NULL)
+);
+CREATE INDEX idx_proposal_company_status ON proposal (company_id, status, created_at DESC);
+CREATE INDEX idx_proposal_violation ON proposal (violation_id);
+]]>    </sql>
+    <rollback><![CDATA[
+DROP TABLE proposal;
+]]>    </rollback>
+  </changeSet>
+</databaseChangeLog>

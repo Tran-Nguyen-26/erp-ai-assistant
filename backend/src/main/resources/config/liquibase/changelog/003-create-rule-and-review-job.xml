@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+  <changeSet id="003-create-rule-and-review-job" author="ttn">
+    <sql splitStatements="true"><![CDATA[
+
+CREATE TABLE rule_definition (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rule_id VARCHAR(80) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    group_code VARCHAR(10) NOT NULL CHECK (group_code IN ('FLD','DOC','XDOC','REG','ANM')),
+    severity VARCHAR(10) NOT NULL CHECK (severity IN ('ERROR','WARNING','INFO')),
+    entity_type VARCHAR(30) NOT NULL,
+    evaluator VARCHAR(10) NOT NULL CHECK (evaluator IN ('SPEL','SQL')),
+    definition JSONB NOT NULL,
+    params JSONB NOT NULL DEFAULT '{}',
+    legal_refs JSONB NOT NULL DEFAULT '[]',
+    rag_query TEXT,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    version INT NOT NULL DEFAULT 1,
+    source_hash CHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uk_rule_definition_rule_id UNIQUE (rule_id)
+);
+CREATE TABLE review_job (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id VARCHAR(64) NOT NULL,
+    period_from DATE NOT NULL,
+    period_to DATE NOT NULL,
+    scope JSONB NOT NULL DEFAULT '{}',
+    status VARCHAR(15) NOT NULL CHECK (status IN ('PENDING','RUNNING','COMPLETED','FAILED','CANCELLED')),
+    total_documents INT NOT NULL DEFAULT 0,
+    processed_documents INT NOT NULL DEFAULT 0,
+    total_batches INT NOT NULL DEFAULT 0,
+    failed_batches INT NOT NULL DEFAULT 0,
+    violation_count INT NOT NULL DEFAULT 0,
+    requested_by UUID NOT NULL REFERENCES app_user(id),
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT ck_review_job_period CHECK (period_from <= period_to)
+);
+CREATE INDEX idx_review_job_company_created ON review_job (company_id, created_at DESC);
+]]>    </sql>
+    <rollback><![CDATA[
+DROP TABLE review_job; DROP TABLE rule_definition;
+]]>    </rollback>
+  </changeSet>
+</databaseChangeLog>

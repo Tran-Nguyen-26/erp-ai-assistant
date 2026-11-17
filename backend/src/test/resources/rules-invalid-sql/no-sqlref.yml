@@ -1,0 +1,7 @@
+ruleId: XDOC_NO_SQLREF
+name: "thiếu sqlRef"
+group: XDOC
+severity: ERROR
+entityType: PURCHASE_INVOICE
+evaluator: SQL
+message: "x"

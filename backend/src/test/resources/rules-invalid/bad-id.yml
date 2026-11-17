@@ -1,0 +1,8 @@
+ruleId: bad_rule_id
+name: "sai quy ước"
+group: DOC
+severity: ERROR
+entityType: PURCHASE_INVOICE
+evaluator: SPEL
+condition: "true"
+message: "x"

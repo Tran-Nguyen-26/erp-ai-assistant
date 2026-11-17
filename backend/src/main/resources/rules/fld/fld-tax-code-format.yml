@@ -1,0 +1,19 @@
+ruleId: FLD_TAX_CODE_FORMAT
+name: "Mã số thuế đối tượng sai định dạng"
+group: FLD
+severity: WARNING
+entityType: PURCHASE_INVOICE
+evaluator: SPEL
+params:
+  # 10 số, 10 số-3 số (đơn vị phụ thuộc), hoặc 12 số (MST cá nhân = số định danh)
+  pattern: '^(\d{10}|\d{10}-\d{3}|\d{12})$'
+condition: >
+  #entity.partner != null and !#isBlank(#entity.partner.taxCode)
+  and !#matches(#entity.partner.taxCode, #params['pattern'])
+message: "Mã số thuế {{entity.partner.taxCode}} của đối tượng không đúng định dạng"
+evidence:
+  taxCode: "#entity.partner.taxCode"
+legalRefs: []
+ragQuery: "cấu trúc mã số thuế doanh nghiệp"
+enabled: true
+version: 1

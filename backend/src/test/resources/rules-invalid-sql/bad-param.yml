@@ -1,0 +1,9 @@
+ruleId: XDOC_BAD_PARAM
+name: "tham số không cho phép"
+group: XDOC
+severity: ERROR
+entityType: PURCHASE_INVOICE
+evaluator: SQL
+sqlRef: rule-duplicate-invoice
+sqlParams: [companyId, "'; DROP TABLE x;--"]
+message: "x"
