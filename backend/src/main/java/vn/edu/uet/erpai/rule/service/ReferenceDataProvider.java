@@ -38,11 +38,15 @@ public class ReferenceDataProvider {
     try {
       var all = new HashSet<String>();
       var detail = new HashSet<String>();
+      var names = new java.util.HashMap<String, String>();
       for (int page = 0; page < MAX_PAGES; page++) {
         var batch = erp.listAccounts(companyId, page, PAGE);
         for (var a : batch) {
           if (a.isActive() && a.accountNumber() != null) {
             all.add(a.accountNumber());
+            if (a.accountName() != null) {
+              names.put(a.accountNumber(), a.accountName());
+            }
             if (a.isDetail()) {
               detail.add(a.accountNumber());
             }
@@ -52,7 +56,7 @@ public class ReferenceDataProvider {
           break;
         }
       }
-      var data = new RuleReferenceData(all, detail);
+      var data = new RuleReferenceData(all, detail, names);
       cache.put(companyId, new Cached(data, Instant.now()));
       return data;
     } catch (RuntimeException e) {

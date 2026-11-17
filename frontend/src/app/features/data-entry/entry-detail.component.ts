@@ -45,7 +45,12 @@ const EDITABLE: { key: keyof EntryDraftResponse['invoice']; label: string; type?
           <div class="toolbar-row">
             @for (f of fields; track f.key) {
               <mat-form-field appearance="outline">
-                <mat-label>{{ f.label }}{{ lowConf(d, f.key) ? ' ⚠ cần kiểm tra' : '' }}</mat-label>
+                <mat-label
+                  >{{ f.label
+                  }}{{
+                    lowConf(d, f.key) ? ' ⚠ cần kiểm tra (' + pct(d, f.key) + ')' : ''
+                  }}</mat-label
+                >
                 <input
                   matInput
                   [type]="f.type ?? 'text'"
@@ -213,7 +218,11 @@ export class EntryDetailComponent implements OnInit {
   }
 
   protected lowConf(d: EntryDraftResponse, key: string): boolean {
-    return (d.fieldConfidence[key] ?? 1) < 1;
+    return d.lowConfidenceFields.includes(key);
+  }
+
+  protected pct(d: EntryDraftResponse, key: string): string {
+    return `${Math.round((d.fieldConfidence[key] ?? 0) * 100)}%`;
   }
 
   protected value(key: keyof EntryDraftResponse['invoice']): string {

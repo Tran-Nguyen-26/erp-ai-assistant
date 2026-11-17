@@ -21,6 +21,11 @@ export class EntryApiService {
     return this.http.post<EntryDraftResponse>(this.base, form);
   }
 
+  /** Nhập từ mô tả bằng lời / văn bản dán vào (LLM local). */
+  createFromText(sourceText: string): Observable<EntryDraftResponse> {
+    return this.http.post<EntryDraftResponse>(this.base, { sourceText });
+  }
+
   get(id: string): Observable<EntryDraftResponse> {
     return this.http.get<EntryDraftResponse>(`${this.base}/${id}`);
   }

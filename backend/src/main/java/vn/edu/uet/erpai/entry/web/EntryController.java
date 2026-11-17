@@ -40,11 +40,20 @@ public class EntryController {
   public ResponseEntity<EntryDraftResponse> create(@RequestPart("file") MultipartFile file)
       throws IOException {
     var draft =
-        service.createFromXml(
+        service.createFromFile(
             SecurityUtils.currentUser(),
             file.getBytes(),
             file.getOriginalFilename(),
             file.getContentType());
+    return ResponseEntity.created(URI.create("/api/v1/entry/drafts/" + draft.id())).body(draft);
+  }
+
+  public record TextRequest(String sourceText) {}
+
+  /** Nhập từ mô tả bằng lời/văn bản dán vào (LLM local). */
+  @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+  public ResponseEntity<EntryDraftResponse> createFromText(@RequestBody TextRequest req) {
+    var draft = service.createFromText(SecurityUtils.currentUser(), req.sourceText());
     return ResponseEntity.created(URI.create("/api/v1/entry/drafts/" + draft.id())).body(draft);
   }
 

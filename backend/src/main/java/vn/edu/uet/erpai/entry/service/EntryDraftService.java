@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.edu.uet.erpai.audit.service.ActorType;
 import vn.edu.uet.erpai.audit.service.AuditEvent;
 import vn.edu.uet.erpai.common.exception.BusinessException;
+import vn.edu.uet.erpai.common.llm.LlmClient;
 import vn.edu.uet.erpai.common.security.CurrentUser;
 import vn.edu.uet.erpai.common.security.Role;
 import vn.edu.uet.erpai.common.storage.FileStorageService;
@@ -25,6 +27,8 @@ import vn.edu.uet.erpai.entry.domain.EntryDraft.SourceType;
 import vn.edu.uet.erpai.entry.domain.EntryDraft.Status;
 import vn.edu.uet.erpai.entry.extractor.EInvoiceXmlExtractor;
 import vn.edu.uet.erpai.entry.extractor.ExtractedInvoice;
+import vn.edu.uet.erpai.entry.extractor.LlmInvoiceExtractor;
+import vn.edu.uet.erpai.entry.extractor.PdfReader;
 import vn.edu.uet.erpai.entry.repository.EntryDraftRepository;
 import vn.edu.uet.erpai.entry.service.EntryDraftResponse.PartnerMatch;
 import vn.edu.uet.erpai.entry.service.EntryDraftResponse.SuggestedEntry;
@@ -54,6 +58,10 @@ public class EntryDraftService {
 
   private final EntryDraftRepository drafts;
   private final EInvoiceXmlExtractor extractor;
+  private final LlmInvoiceExtractor llmExtractor;
+  private final PdfReader pdfReader;
+  private final AccountSuggester suggester;
+  private final double minConfidence;
   private final FileStorageService storage;
   private final ErpQueryService erp;
   private final RuleCheckService rules;
@@ -63,6 +71,10 @@ public class EntryDraftService {
   public EntryDraftService(
       EntryDraftRepository drafts,
       EInvoiceXmlExtractor extractor,
+      LlmInvoiceExtractor llmExtractor,
+      PdfReader pdfReader,
+      AccountSuggester suggester,
+      @Value("${app.entry.min-confidence:0.7}") double minConfidence,
       FileStorageService storage,
       ErpQueryService erp,
       RuleCheckService rules,
@@ -70,6 +82,10 @@ public class EntryDraftService {
       ApplicationEventPublisher events) {
     this.drafts = drafts;
     this.extractor = extractor;
+    this.llmExtractor = llmExtractor;
+    this.pdfReader = pdfReader;
+    this.suggester = suggester;
+    this.minConfidence = minConfidence;
     this.storage = storage;
     this.erp = erp;
     this.rules = rules;
@@ -77,8 +93,12 @@ public class EntryDraftService {
     this.events = events;
   }
 
+  /**
+   * Tạo nháp từ file: XML hóa đơn điện tử (tất định), PDF hoặc ảnh (LLM; PDF có lớp chữ dùng văn
+   * bản, PDF scan dùng mô hình vision). Dữ liệu từ LLM luôn là nháp kèm độ tin cậy từng trường.
+   */
   @Transactional
-  public EntryDraftResponse createFromXml(
+  public EntryDraftResponse createFromFile(
       CurrentUser user, byte[] content, String fileName, String contentType) {
     if (content == null || content.length == 0) {
       throw new BusinessException("ENTRY_EMPTY_FILE", "File rỗng");
@@ -87,31 +107,78 @@ public class EntryDraftService {
       throw new BusinessException(
           "ENTRY_FILE_TOO_LARGE", "File vượt quá 10 MB", HttpStatus.PAYLOAD_TOO_LARGE);
     }
-    if (fileName == null || !fileName.toLowerCase().endsWith(".xml")) {
-      throw new BusinessException(
-          "ENTRY_UNSUPPORTED_FORMAT", "Hiện chỉ hỗ trợ hóa đơn điện tử .xml");
+    var ext =
+        fileName == null || !fileName.contains(".")
+            ? ""
+            : fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+    EInvoiceXmlExtractor.Result result;
+    SourceType type;
+    switch (ext) {
+      case "xml" -> {
+        result = extractor.extract(content); // ném lỗi trước khi lưu file nếu XML không hợp lệ
+        type = SourceType.XML;
+      }
+      case "pdf" -> {
+        var pdf = pdfReader.read(content);
+        result =
+            pdf.isScanned()
+                ? llmExtractor.fromImages(pdf.pages())
+                : llmExtractor.fromText(pdf.text());
+        type = SourceType.PDF;
+      }
+      case "png", "jpg", "jpeg", "webp" -> {
+        var mime = "jpg".equals(ext) ? "image/jpeg" : "image/" + ext;
+        result = llmExtractor.fromImages(List.of(new LlmClient.Image(content, mime)));
+        type = SourceType.IMAGE;
+      }
+      default ->
+          throw new BusinessException(
+              "ENTRY_UNSUPPORTED_FORMAT",
+              "Hỗ trợ .xml (hóa đơn điện tử), .pdf, .png, .jpg, .jpeg, .webp");
     }
-    var result = extractor.extract(content); // ném lỗi trước khi lưu file nếu XML không hợp lệ
     var stored = storage.save(content, fileName, contentType, "ENTRY", user.id());
+    return persist(user, type, stored.id(), null, result);
+  }
+
+  /** Nhập từ mô tả bằng lời / văn bản dán vào (LLM local). */
+  @Transactional
+  public EntryDraftResponse createFromText(CurrentUser user, String text) {
+    if (text == null || text.isBlank()) {
+      throw new BusinessException("ENTRY_EMPTY_TEXT", "Nội dung rỗng");
+    }
+    if (text.length() > LlmInvoiceExtractor.MAX_TEXT_CHARS) {
+      throw new BusinessException(
+          "ENTRY_TEXT_TOO_LONG",
+          "Nội dung quá dài (tối đa " + LlmInvoiceExtractor.MAX_TEXT_CHARS + " ký tự)");
+    }
+    return persist(user, SourceType.TEXT, null, text, llmExtractor.fromText(text));
+  }
+
+  private EntryDraftResponse persist(
+      CurrentUser user,
+      SourceType type,
+      UUID fileId,
+      String sourceText,
+      EInvoiceXmlExtractor.Result result) {
     var invoice = result.invoice();
     var partner = lookupPartner(user.companyId(), invoice.sellerTaxCode());
-    var entries = defaultEntries(invoice);
-    var draftId = UUID.randomUUID();
-    var validation = validate(draftId, user.companyId(), invoice, entries);
+    var entries = suggester.suggest(user.companyId(), invoice);
+    var validation = validate(UUID.randomUUID(), user.companyId(), invoice, entries);
 
     var draft =
         new EntryDraft(
             user.companyId(),
-            SourceType.XML,
-            stored.id(),
+            type,
+            fileId,
             "PURCHASE_INVOICE",
             toMap(new DraftData(invoice, partner)),
             new LinkedHashMap<>(result.confidence()),
             toList(entries),
             toList(validation),
             user.id());
+    draft.setSourceText(sourceText);
     var saved = drafts.save(draft);
-    audit(user, "ENTRY_DRAFT_CREATED", saved.getId(), Map.of("source", "XML"));
+    audit(user, "ENTRY_DRAFT_CREATED", saved.getId(), Map.of("source", type.name()));
     return response(saved);
   }
 
@@ -346,10 +413,22 @@ public class EntryDraftService {
         data.invoice(),
         data.partnerMatch(),
         d.getFieldConfidence(),
+        lowConfidence(d.getFieldConfidence()),
         readEntries(d),
         mapper.convertValue(d.getValidation(), new TypeReference<List<ValidationItem>>() {}),
         d.getCreatedAt(),
         d.getUpdatedAt());
+  }
+
+  /**
+   * Trường có độ tin cậy dưới ngưỡng app.entry.min-confidence (kể cả trường không đọc được = 0).
+   */
+  private List<String> lowConfidence(Map<String, Object> confidence) {
+    return confidence.entrySet().stream()
+        .filter(e -> e.getValue() instanceof Number n && n.doubleValue() < minConfidence)
+        .map(Map.Entry::getKey)
+        .sorted()
+        .toList();
   }
 
   private DraftData readData(EntryDraft d) {

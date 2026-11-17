@@ -13,6 +13,7 @@ public record EntryDraftResponse(
     ExtractedInvoice invoice,
     PartnerMatch partnerMatch,
     Map<String, Object> fieldConfidence,
+    List<String> lowConfidenceFields,
     List<SuggestedEntry> suggestedEntries,
     List<ValidationItem> validation,
     OffsetDateTime createdAt,

@@ -45,6 +45,9 @@ public class EntryDraft {
   @Column(name = "source_file_id")
   private UUID sourceFileId;
 
+  @Column(name = "source_text")
+  private String sourceText;
+
   @Column(name = "voucher_type")
   private String voucherType;
 
@@ -123,6 +126,10 @@ public class EntryDraft {
     this.suggestedEntries = suggestedEntries;
     this.validation = validation;
     this.status = status;
+  }
+
+  public void setSourceText(String sourceText) {
+    this.sourceText = sourceText;
   }
 
   public void setStatus(Status status) {

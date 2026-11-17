@@ -49,6 +49,8 @@ export interface EntryDraftResponse {
   invoice: ExtractedInvoice;
   partnerMatch: { found: boolean | null; code: string | null; name: string | null };
   fieldConfidence: Record<string, number>;
+  /** Trường có độ tin cậy dưới ngưỡng cấu hình ở server — cần người dùng kiểm tra. */
+  lowConfidenceFields: string[];
   suggestedEntries: SuggestedEntry[];
   validation: ValidationItem[];
   createdAt: string;

@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -11,19 +12,40 @@ import { EntryDraftResponse } from '../../core/models/entry.model';
 @Component({
   selector: 'app-entry-list',
   standalone: true,
-  imports: [DatePipe, MatButtonModule, MatProgressBarModule],
+  imports: [DatePipe, FormsModule, MatButtonModule, MatProgressBarModule],
   template: `
     <div class="page">
       <h1>Nhập liệu từ hóa đơn điện tử</h1>
       <div class="card toolbar-row">
-        <input #file type="file" accept=".xml" hidden (change)="upload($event)" />
+        <input
+          #file
+          type="file"
+          accept=".xml,.pdf,.png,.jpg,.jpeg,.webp"
+          hidden
+          (change)="upload($event)"
+        />
         <button mat-flat-button (click)="file.click()" [disabled]="busy()">
-          Tải lên hóa đơn XML
+          Tải lên hóa đơn (XML, PDF, ảnh)
         </button>
         <span class="muted"
           >Hệ thống tự điền form, gợi ý định khoản và kiểm tra rule (gồm trùng hóa đơn) trước khi
           lưu.</span
         >
+      </div>
+      <div class="card">
+        <h3>Hoặc mô tả bằng lời / dán nội dung hóa đơn</h3>
+        <textarea
+          class="text"
+          rows="3"
+          [(ngModel)]="text"
+          placeholder="VD: Mua 20 bàn phím của Công ty Alpha (MST 0101234567), 500.000đ/cái, thuế 10%, ngày 20/10/2026"
+          maxlength="20000"
+        ></textarea>
+        <div class="toolbar-row">
+          <button mat-stroked-button (click)="fromText()" [disabled]="busy() || !text.trim()">
+            Phân tích bằng AI
+          </button>
+        </div>
       </div>
       @if (busy()) {
         <mat-progress-bar mode="indeterminate" />
@@ -71,6 +93,16 @@ import { EntryDraftResponse } from '../../core/models/entry.model';
       table {
         border-collapse: collapse;
       }
+      .text {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid var(--mat-sys-outline);
+        background: var(--mat-sys-surface);
+        color: inherit;
+        font: inherit;
+      }
       th,
       td {
         text-align: left;
@@ -88,6 +120,7 @@ export class EntryListComponent implements OnInit {
 
   protected readonly items = signal<EntryDraftResponse[]>([]);
   protected readonly busy = signal(false);
+  protected text = '';
 
   ngOnInit(): void {
     this.api
@@ -110,6 +143,17 @@ export class EntryListComponent implements OnInit {
       },
     });
     input.value = '';
+  }
+
+  protected fromText(): void {
+    this.busy.set(true);
+    this.api.createFromText(this.text.trim()).subscribe({
+      next: (d) => void this.router.navigate(['/entry', d.id]),
+      error: (e) => {
+        this.busy.set(false);
+        this.toast(e);
+      },
+    });
   }
 
   protected open(d: EntryDraftResponse): void {
