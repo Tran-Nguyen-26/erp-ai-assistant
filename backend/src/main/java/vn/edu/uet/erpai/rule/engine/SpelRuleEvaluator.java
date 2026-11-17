@@ -41,7 +41,12 @@ public class SpelRuleEvaluator {
   private final SpelExpressionParser parser = new SpelExpressionParser();
 
   public List<RuleResult> evaluate(RuleDefinition rule, ErpVoucher voucher) {
-    if (rule.entityType() != voucher.entityType()) {
+    return evaluate(rule, voucher, RuleReferenceData.EMPTY);
+  }
+
+  public List<RuleResult> evaluate(
+      RuleDefinition rule, ErpVoucher voucher, RuleReferenceData reference) {
+    if (!rule.appliesTo(voucher.entityType())) {
       return List.of();
     }
     var condition = parser.parseExpression(rule.condition());
@@ -49,7 +54,7 @@ public class SpelRuleEvaluator {
     var items = items(rule, voucher);
     for (int i = 0; i < items.size(); i++) {
       var item = items.get(i);
-      var ctx = context(rule, voucher, item);
+      var ctx = context(rule, voucher, item, reference);
       Boolean violated = condition.getValue(ctx, Boolean.class);
       if (Boolean.TRUE.equals(violated)) {
         var evidence = evidence(rule, ctx);
@@ -82,7 +87,8 @@ public class SpelRuleEvaluator {
     throw new IllegalStateException(rule.ruleId() + ": forEach không hỗ trợ: " + rule.forEach());
   }
 
-  private StandardEvaluationContext context(RuleDefinition rule, ErpVoucher v, Object item) {
+  private StandardEvaluationContext context(
+      RuleDefinition rule, ErpVoucher v, Object item, RuleReferenceData reference) {
     var ctx = new StandardEvaluationContext(v);
     ctx.setPropertyAccessors(List.<PropertyAccessor>of(new RecordAccessor(), new MapAccessor()));
     ctx.setConstructorResolvers(List.of());
@@ -94,6 +100,8 @@ public class SpelRuleEvaluator {
     ctx.setVariable("entity", v);
     ctx.setVariable("item", item);
     ctx.setVariable("params", rule.params());
+    ctx.setVariable("allAccounts", reference.allAccounts());
+    ctx.setVariable("detailAccounts", reference.detailAccounts());
     register(ctx, "abs", "abs", java.math.BigDecimal.class);
     register(ctx, "round", "round", java.math.BigDecimal.class);
     register(ctx, "sum", "sum", Collection.class);

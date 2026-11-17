@@ -22,7 +22,17 @@ public class RuleLoader {
 
   /** Tham số rule SQL cho phép lấy từ chứng từ (không bao giờ lấy từ chuỗi người dùng). */
   public static final java.util.Set<String> ALLOWED_SQL_PARAMS =
-      java.util.Set.of("companyId", "sellerTaxCode", "invoiceSeries", "invoiceNo", "entityRef");
+      java.util.Set.of(
+          "companyId",
+          "sellerTaxCode",
+          "invoiceSeries",
+          "invoiceNo",
+          "entityRef",
+          "partnerId",
+          "sinceDate",
+          "lineNo",
+          "materialGoodsId",
+          "unitPrice");
 
   private final ObjectMapper mapper =
       new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
@@ -70,8 +80,13 @@ public class RuleLoader {
       if (r.sqlRef() == null || !r.sqlRef().matches("^rule-[a-z0-9-]+$")) {
         throw new IllegalStateException(file + ": rule SQL cần sqlRef dạng rule-<ten-kebab>");
       }
-      if (!ALLOWED_SQL_PARAMS.containsAll(r.sqlParams())) {
-        throw new IllegalStateException(file + ": sqlParams chỉ được gồm " + ALLOWED_SQL_PARAMS);
+      for (var p : r.sqlParams()) {
+        // hoặc là tham số lấy từ chứng từ, hoặc là khóa trong params của chính rule (k,
+        // minSamples...)
+        if (!ALLOWED_SQL_PARAMS.contains(p) && !r.params().containsKey(p)) {
+          throw new IllegalStateException(
+              file + ": sqlParams chỉ được gồm " + ALLOWED_SQL_PARAMS + " hoặc khóa trong params");
+        }
       }
     }
     if (r.message() == null || r.message().isBlank()) {

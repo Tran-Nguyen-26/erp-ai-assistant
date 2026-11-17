@@ -214,4 +214,56 @@ class RuleFlowIT extends AbstractPostgresIT {
     mvc.perform(get("/api/v1/violations/" + UUID.randomUUID()).header("Authorization", admin))
         .andExpect(status().isNotFound());
   }
+
+  @Test
+  void adminCanDryRunAnyRuleWithoutPersistingViolations() throws Exception {
+    var admin = login("admin_test", Role.ADMIN, COMPANY_A);
+    var accountant = login("acc_test", Role.ACCOUNTANT, COMPANY_A);
+    var entity =
+        "{\"entityType\":\"PURCHASE_INVOICE\",\"entity\":{\"ref\":\"r1\",\"companyId\":\"someone-else\","
+            + "\"entityType\":\"PURCHASE_INVOICE\",\"voucherTypeId\":210,\"voucherNo\":\"MH9\","
+            + "\"voucherDate\":\"2026-10-15\",\"partner\":{\"id\":\"p\",\"code\":\"N\",\"name\":\"A\",\"taxCode\":\"12\"},"
+            + "\"currency\":\"VND\",\"exchangeRate\":\"1\",\"totalAmount\":\"1\",\"totalVatAmount\":\"0\","
+            + "\"totalDiscountAmount\":\"0\",\"isRecorded\":true,\"lines\":[]}}";
+
+    mvc.perform(
+            post("/api/v1/rules/FLD_TAX_CODE_FORMAT/test")
+                .header("Authorization", accountant)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(entity))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            post("/api/v1/rules/FLD_TAX_CODE_FORMAT/test")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(entity))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.violated").value(true))
+        .andExpect(
+            jsonPath("$.results[0].message").value(org.hamcrest.Matchers.containsString("12")));
+    // rule đang tắt vẫn chạy thử được
+    mvc.perform(
+            post("/api/v1/rules/REG_CASH_PAYMENT_THRESHOLD/test")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(entity))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.violated").value(false));
+    mvc.perform(
+            post("/api/v1/rules/NO_SUCH_RULE/test")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(entity))
+        .andExpect(status().isNotFound());
+    mvc.perform(
+            post("/api/v1/rules/FLD_TAX_CODE_FORMAT/test")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isUnprocessableEntity());
+    org.assertj.core.api.Assertions.assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM violation WHERE entity_ref = 'r1'", Integer.class))
+        .isZero();
+  }
 }

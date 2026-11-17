@@ -23,6 +23,18 @@ import vn.edu.uet.erpai.rule.repository.ViolationRepository;
 @Service
 public class RuleAdminService {
 
+  /**
+   * Chạy thử một rule (dry-run, không lưu violation): theo chứng từ ERP hoặc chứng từ canonical
+   * truyền vào.
+   */
+  public record TestRequest(
+      vn.edu.uet.erpai.erp.model.ErpEntityType entityType,
+      String entityRef,
+      vn.edu.uet.erpai.erp.model.ErpVoucher entity) {}
+
+  public record TestResponse(
+      String ruleId, boolean violated, List<Map<String, Object>> results, long durationMs) {}
+
   public record PatchRequest(Boolean enabled, Severity severity, Map<String, Object> params) {}
 
   private final RuleRecordRepository rules;
@@ -30,18 +42,27 @@ public class RuleAdminService {
   private final RuleCatalog catalog;
   private final RuleSyncService syncService;
   private final ApplicationEventPublisher events;
+  private final vn.edu.uet.erpai.erp.service.ErpQueryService erp;
+  private final vn.edu.uet.erpai.rule.engine.RuleEngine engine;
+  private final ReferenceDataProvider referenceData;
 
   public RuleAdminService(
       RuleRecordRepository rules,
       ViolationRepository violations,
       RuleCatalog catalog,
       RuleSyncService syncService,
-      ApplicationEventPublisher events) {
+      ApplicationEventPublisher events,
+      vn.edu.uet.erpai.erp.service.ErpQueryService erp,
+      vn.edu.uet.erpai.rule.engine.RuleEngine engine,
+      ReferenceDataProvider referenceData) {
     this.rules = rules;
     this.violations = violations;
     this.catalog = catalog;
     this.syncService = syncService;
     this.events = events;
+    this.erp = erp;
+    this.engine = engine;
+    this.referenceData = referenceData;
   }
 
   @Transactional(readOnly = true)
@@ -122,6 +143,44 @@ public class RuleAdminService {
             null,
             Map.of("added", report.added().size(), "updated", report.updated().size())));
     return report;
+  }
+
+  public TestResponse test(CurrentUser user, String ruleId, TestRequest req) {
+    long start = System.nanoTime();
+    var active =
+        catalog
+            .find(ruleId)
+            .orElseThrow(
+                () ->
+                    new BusinessException(
+                        "RULE_NOT_FOUND", "Không tìm thấy rule " + ruleId, HttpStatus.NOT_FOUND));
+    // dry-run luôn bật rule (kể cả rule đang tắt) và không lưu gì
+    var definition =
+        active
+            .definition()
+            .withOverrides(active.definition().severity(), true, active.definition().params());
+    vn.edu.uet.erpai.erp.model.ErpVoucher voucher;
+    if (req.entity() != null) {
+      voucher =
+          req.entity().withCompanyId(user.companyId()); // không cho thử trên dữ liệu công ty khác
+    } else if (req.entityType() != null && req.entityRef() != null) {
+      voucher = erp.getVoucher(req.entityType(), user.companyId(), req.entityRef());
+    } else {
+      throw new BusinessException(
+          "RULE_TEST_INPUT_REQUIRED", "Cần entityType+entityRef hoặc entity");
+    }
+    var results =
+        engine
+            .evaluate(
+                voucher, List.of(definition), () -> referenceData.forCompany(user.companyId()))
+            .stream()
+            .map(
+                r ->
+                    Map.<String, Object>of(
+                        "message", r.message(), "evidence", JsonSafe.evidence(r.evidence())))
+            .toList();
+    return new TestResponse(
+        ruleId, !results.isEmpty(), results, (System.nanoTime() - start) / 1_000_000);
   }
 
   private Map<UUID, Long> openCounts() {

@@ -65,10 +65,20 @@ public class ErpVoucherAdapter {
                 v.totalVatAmount(),
                 v.totalDiscountAmount(),
                 v.totalAmount(),
-                null);
+                paymentMethodOf(v.voucherTypeId()));
       }
     }
     return Optional.of(v.withLines(lines, invoice));
+  }
+
+  /** Suy phương thức thanh toán từ TypeID chứng từ mua hàng/dịch vụ (docs/erp-mapping.md §5). */
+  public static String paymentMethodOf(int typeId) {
+    return switch (typeId) {
+      case 211, 241, 215, 245 -> "CASH";
+      case 212, 242, 213, 243 -> "BANK_TRANSFER";
+      case 214, 244 -> "CARD";
+      default -> "UNKNOWN"; // 210/240: mua chịu, ghi công nợ
+    };
   }
 
   public ErpPage<ErpVoucher> listPurchaseInvoices(

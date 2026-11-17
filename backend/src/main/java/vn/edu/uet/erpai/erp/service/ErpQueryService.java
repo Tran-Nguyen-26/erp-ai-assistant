@@ -35,6 +35,17 @@ public class ErpQueryService {
     this.adapter = adapter;
   }
 
+  /** Tải chứng từ theo loại; loại chưa có adapter → lỗi nghiệp vụ rõ ràng. */
+  public ErpVoucher getVoucher(
+      vn.edu.uet.erpai.erp.model.ErpEntityType type, String companyId, String entityRef) {
+    return switch (type) {
+      case PURCHASE_INVOICE -> getPurchaseInvoice(companyId, entityRef);
+      default ->
+          throw new BusinessException(
+              "RULE_ENTITY_TYPE_UNSUPPORTED", "Chưa hỗ trợ loại chứng từ " + type);
+    };
+  }
+
   public ErpVoucher getPurchaseInvoice(String companyId, String entityRef) {
     var company = guid(companyId, "companyId");
     var ref = guid(entityRef, "entityRef");
@@ -86,6 +97,9 @@ public class ErpQueryService {
     checked.computeIfPresent("companyId", (k, v) -> guid(String.valueOf(v), "companyId"));
     checked.computeIfPresent(
         "entityRef", (k, v) -> v == null ? null : guid(String.valueOf(v), "entityRef"));
+    for (var key : List.of("materialGoodsId", "partnerId")) {
+      checked.computeIfPresent(key, (k, v) -> guid(String.valueOf(v), key));
+    }
     return guard(() -> adapter.queryRule(sqlRef, checked));
   }
 

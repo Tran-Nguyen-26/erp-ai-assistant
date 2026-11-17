@@ -1,0 +1,24 @@
+ruleId: REG_CASH_PAYMENT_THRESHOLD
+name: "Hóa đơn đạt ngưỡng phải thanh toán không dùng tiền mặt"
+group: REG
+severity: WARNING
+entityType: PURCHASE_INVOICE
+evaluator: SPEL
+params:
+  # Ngưỡng theo quy định hiện hành về chứng từ thanh toán không dùng tiền mặt để khấu trừ GTGT đầu vào.
+  # Quy định thay đổi theo thời gian: PHẢI xác nhận giá trị với văn bản trong kho tri thức rồi mới bật rule.
+  threshold: 5000000
+condition: >
+  #entity.invoice != null and #entity.invoice.paymentMethod == 'CASH'
+  and #entity.invoice.totalAmount >= #params['threshold']
+message: >
+  Hóa đơn {{entity.invoice.totalAmount}} thanh toán bằng tiền mặt (ngưỡng {{params.threshold}}): có thể không
+  đủ điều kiện khấu trừ thuế GTGT đầu vào
+evidence:
+  totalAmount: "#entity.invoice.totalAmount"
+  threshold: "#params['threshold']"
+legalRefs: ["Luật Thuế giá trị gia tăng"]
+ragQuery: "điều kiện khấu trừ thuế GTGT đầu vào chứng từ thanh toán không dùng tiền mặt"
+# Tắt cho tới khi xác nhận ngưỡng và hiệu lực với văn bản pháp luật hiện hành.
+enabled: false
+version: 1

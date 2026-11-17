@@ -13,6 +13,7 @@ public record RuleDefinition(
     Group group,
     Severity severity,
     ErpEntityType entityType,
+    List<ErpEntityType> entityTypes,
     Evaluator evaluator,
     String forEach,
     Map<String, Object> params,
@@ -22,6 +23,7 @@ public record RuleDefinition(
     String evidenceKey,
     String sqlRef,
     List<String> sqlParams,
+    List<String> needs,
     List<String> legalRefs,
     String ragQuery,
     @com.fasterxml.jackson.annotation.JsonProperty("enabled") Boolean enabled,
@@ -49,10 +51,25 @@ public record RuleDefinition(
   public RuleDefinition {
     params = params == null ? Map.of() : Map.copyOf(params);
     evidence = evidence == null ? Map.of() : Map.copyOf(evidence);
+    entityTypes =
+        entityTypes == null || entityTypes.isEmpty()
+            ? List.of(entityType)
+            : List.copyOf(entityTypes);
+    needs = needs == null ? List.of() : List.copyOf(needs);
     sqlParams = sqlParams == null ? List.of() : List.copyOf(sqlParams);
     legalRefs = legalRefs == null ? List.of() : List.copyOf(legalRefs);
     enabled = enabled == null || enabled;
     version = version == null ? 1 : version;
+  }
+
+  /** Rule áp dụng cho loại chứng từ này (entityType đơn hoặc danh sách entityTypes). */
+  public boolean appliesTo(ErpEntityType type) {
+    return entityTypes.contains(type);
+  }
+
+  /** Rule cần dữ liệu tham chiếu (ví dụ ACCOUNTS = danh mục tài khoản của công ty). */
+  public boolean needs(String reference) {
+    return needs.contains(reference);
   }
 
   @com.fasterxml.jackson.annotation.JsonIgnore
@@ -69,6 +86,7 @@ public record RuleDefinition(
         group,
         severity,
         entityType,
+        entityTypes,
         evaluator,
         forEach,
         merged,
@@ -78,6 +96,7 @@ public record RuleDefinition(
         evidenceKey,
         sqlRef,
         sqlParams,
+        needs,
         legalRefs,
         ragQuery,
         enabled,
@@ -93,6 +112,7 @@ public record RuleDefinition(
         group,
         newSeverity,
         entityType,
+        entityTypes,
         evaluator,
         forEach,
         newParams,
@@ -102,6 +122,7 @@ public record RuleDefinition(
         evidenceKey,
         sqlRef,
         sqlParams,
+        needs,
         legalRefs,
         ragQuery,
         newEnabled,

@@ -49,6 +49,13 @@ public class RuleController {
     return service.patch(SecurityUtils.currentUser(), ruleId, req);
   }
 
+  @PostMapping("/{ruleId}/test")
+  @PreAuthorize("hasRole('ADMIN')")
+  public RuleAdminService.TestResponse test(
+      @PathVariable String ruleId, @RequestBody RuleAdminService.TestRequest req) {
+    return service.test(SecurityUtils.currentUser(), ruleId, req);
+  }
+
   @PostMapping("/reload")
   @PreAuthorize("hasRole('ADMIN')")
   public SyncReport reload() {

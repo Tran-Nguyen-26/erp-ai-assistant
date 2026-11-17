@@ -3,6 +3,7 @@ name: "Thiếu trường bắt buộc của chứng từ"
 group: FLD
 severity: ERROR
 entityType: PURCHASE_INVOICE
+entityTypes: [PURCHASE_INVOICE, SALES_INVOICE, PAYMENT]
 evaluator: SPEL
 condition: >
   #isBlank(#entity.voucherNo) or #entity.voucherDate == null or #entity.partner == null

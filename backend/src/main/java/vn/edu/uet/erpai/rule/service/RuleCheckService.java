@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.uet.erpai.audit.service.ActorType;
 import vn.edu.uet.erpai.audit.service.AuditEvent;
-import vn.edu.uet.erpai.common.exception.BusinessException;
 import vn.edu.uet.erpai.common.security.CurrentUser;
 import vn.edu.uet.erpai.erp.model.ErpEntityType;
 import vn.edu.uet.erpai.erp.model.ErpVoucher;
@@ -25,6 +24,7 @@ public class RuleCheckService {
   private final ErpQueryService erp;
   private final RuleEngine engine;
   private final RuleCatalog catalog;
+  private final ReferenceDataProvider referenceData;
   private final ViolationService violationService;
   private final ApplicationEventPublisher events;
 
@@ -32,11 +32,13 @@ public class RuleCheckService {
       ErpQueryService erp,
       RuleEngine engine,
       RuleCatalog catalog,
+      ReferenceDataProvider referenceData,
       ViolationService violationService,
       ApplicationEventPublisher events) {
     this.erp = erp;
     this.engine = engine;
     this.catalog = catalog;
+    this.referenceData = referenceData;
     this.violationService = violationService;
     this.events = events;
   }
@@ -56,11 +58,12 @@ public class RuleCheckService {
         catalog.all().stream()
             .map(a -> a.definition())
             .filter(d -> d.isEnabled())
-            .filter(d -> d.entityType() == voucher.entityType())
+            .filter(d -> d.appliesTo(voucher.entityType()))
             .filter(d -> groups == null || groups.isEmpty() || groups.contains(d.group()))
             .filter(d -> ruleIds == null || ruleIds.isEmpty() || ruleIds.contains(d.ruleId()))
             .toList();
-    var results = engine.evaluate(voucher, active);
+    var results =
+        engine.evaluate(voucher, active, () -> referenceData.forCompany(voucher.companyId()));
     var ids = active.stream().map(d -> d.ruleId()).collect(Collectors.toSet());
     return violationService.sync(companyId, voucher, ids, results, reviewJobId).size();
   }
@@ -72,18 +75,17 @@ public class RuleCheckService {
     ErpVoucher voucher =
         switch (type) {
           case PURCHASE_INVOICE -> erp.getPurchaseInvoice(user.companyId(), entityRef);
-          default ->
-              throw new BusinessException(
-                  "RULE_ENTITY_TYPE_UNSUPPORTED", "Chưa hỗ trợ rà soát loại chứng từ " + type);
+          default -> erp.getVoucher(type, user.companyId(), entityRef);
         };
     var active =
         catalog.all().stream()
             .map(a -> a.definition())
             .filter(d -> d.isEnabled())
-            .filter(d -> d.entityType() == type)
+            .filter(d -> d.appliesTo(type))
             .filter(d -> groups == null || groups.isEmpty() || groups.contains(d.group()))
             .toList();
-    var results = engine.evaluate(voucher, active);
+    var results =
+        engine.evaluate(voucher, active, () -> referenceData.forCompany(voucher.companyId()));
     var ids = active.stream().map(d -> d.ruleId()).collect(Collectors.toSet());
     var violations = violationService.sync(user.companyId(), voucher, ids, results, null);
 
@@ -121,9 +123,10 @@ public class RuleCheckService {
                     includeSql
                         || d.evaluator()
                             == vn.edu.uet.erpai.rule.definition.RuleDefinition.Evaluator.SPEL)
-            .filter(d -> d.entityType() == voucher.entityType())
+            .filter(d -> d.appliesTo(voucher.entityType()))
             .toList();
     var ids = active.stream().map(d -> d.ruleId()).collect(Collectors.toSet());
-    return new Evaluation(ids, engine.evaluate(voucher, active));
+    return new Evaluation(
+        ids, engine.evaluate(voucher, active, () -> referenceData.forCompany(voucher.companyId())));
   }
 }

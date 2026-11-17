@@ -3,6 +3,7 @@ name: "Mã số thuế đối tượng sai định dạng"
 group: FLD
 severity: WARNING
 entityType: PURCHASE_INVOICE
+entityTypes: [PURCHASE_INVOICE, SALES_INVOICE, PAYMENT]
 evaluator: SPEL
 params:
   # 10 số, 10 số-3 số (đơn vị phụ thuộc), hoặc 12 số (MST cá nhân = số định danh)

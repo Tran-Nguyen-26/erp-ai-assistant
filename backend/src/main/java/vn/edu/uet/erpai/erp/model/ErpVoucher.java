@@ -28,6 +28,27 @@ public record ErpVoucher(
     lines = lines == null ? List.of() : List.copyOf(lines);
   }
 
+  public ErpVoucher withCompanyId(String newCompanyId) {
+    return new ErpVoucher(
+        ref,
+        newCompanyId,
+        entityType,
+        voucherTypeId,
+        voucherNo,
+        voucherDate,
+        postedDate,
+        description,
+        partner,
+        currency,
+        exchangeRate,
+        totalAmount,
+        totalVatAmount,
+        totalDiscountAmount,
+        isRecorded,
+        lines,
+        invoice);
+  }
+
   public ErpVoucher withLines(List<ErpJournalLine> newLines, ErpInvoice newInvoice) {
     return new ErpVoucher(
         ref,

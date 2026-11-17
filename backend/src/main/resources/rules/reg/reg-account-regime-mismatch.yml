@@ -1,0 +1,25 @@
+ruleId: REG_ACCOUNT_REGIME_MISMATCH
+name: "Tài khoản không thuộc hệ thống tài khoản của công ty"
+group: REG
+severity: WARNING
+entityType: PURCHASE_INVOICE
+entityTypes: [PURCHASE_INVOICE, SALES_INVOICE, PAYMENT]
+evaluator: SPEL
+forEach: lines
+needs: [ACCOUNTS]
+# Bỏ qua khi chưa nạp được danh mục (tránh báo sai): !#allAccounts.isEmpty()
+condition: >
+  !#allAccounts.isEmpty() and (
+  (!#isBlank(#item.debitAccount) and !#allAccounts.contains(#item.debitAccount))
+  or (!#isBlank(#item.creditAccount) and !#allAccounts.contains(#item.creditAccount)))
+message: >
+  Dòng {{item.lineNo}}: tài khoản (Nợ {{item.debitAccount}} / Có {{item.creditAccount}}) không có trong hệ
+  thống tài khoản của công ty
+evidence:
+  lineNo: "#item.lineNo"
+  debitAccount: "#item.debitAccount"
+  creditAccount: "#item.creditAccount"
+legalRefs: ["Chế độ kế toán doanh nghiệp"]
+ragQuery: "hệ thống tài khoản kế toán doanh nghiệp áp dụng"
+enabled: true
+version: 1

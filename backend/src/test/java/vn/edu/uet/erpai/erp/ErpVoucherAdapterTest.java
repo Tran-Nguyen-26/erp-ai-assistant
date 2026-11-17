@@ -97,4 +97,13 @@ class ErpVoucherAdapterTest {
     var adapter = new ErpVoucherAdapter(jdbc, new SqlLoader());
     assertThat(adapter.findPurchaseInvoice(COMPANY, ID)).isEmpty();
   }
+
+  @Test
+  void derivesPaymentMethodFromVoucherType() {
+    assertThat(ErpVoucherAdapter.paymentMethodOf(211)).isEqualTo("CASH");
+    assertThat(ErpVoucherAdapter.paymentMethodOf(215)).isEqualTo("CASH");
+    assertThat(ErpVoucherAdapter.paymentMethodOf(212)).isEqualTo("BANK_TRANSFER");
+    assertThat(ErpVoucherAdapter.paymentMethodOf(244)).isEqualTo("CARD");
+    assertThat(ErpVoucherAdapter.paymentMethodOf(210)).isEqualTo("UNKNOWN");
+  }
 }

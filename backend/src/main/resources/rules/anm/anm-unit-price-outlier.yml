@@ -1,0 +1,20 @@
+ruleId: ANM_UNIT_PRICE_OUTLIER
+name: "Đơn giá lệch bất thường so với lịch sử mua"
+group: ANM
+severity: INFO
+entityType: PURCHASE_INVOICE
+evaluator: SQL
+forEach: lines
+params:
+  k: 3                  # số độ lệch chuẩn
+  minSamples: 5         # số lần mua tối thiểu để có thống kê
+  lookbackMonths: 12
+sqlRef: rule-unit-price-outlier
+sqlParams: [companyId, partnerId, materialGoodsId, sinceDate, entityRef, unitPrice, k, minSamples]
+message: >
+  Dòng {{item.lineNo}}: đơn giá {{item.unitPrice}} lệch hơn {{params.k}} độ lệch chuẩn so với giá trung bình
+  {{row.avgPrice}} ({{row.n}} lần mua gần đây từ cùng nhà cung cấp)
+legalRefs: []
+ragQuery: "kiểm soát giá mua hàng hóa bất thường"
+enabled: true
+version: 1

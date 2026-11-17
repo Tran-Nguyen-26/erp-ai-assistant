@@ -1,0 +1,26 @@
+ruleId: DOC_ACCOUNT_NOT_DETAIL
+name: "Hạch toán vào tài khoản tổng hợp"
+group: DOC
+severity: WARNING
+entityType: PURCHASE_INVOICE
+entityTypes: [PURCHASE_INVOICE, SALES_INVOICE, PAYMENT]
+evaluator: SPEL
+forEach: lines
+needs: [ACCOUNTS]      # danh mục tài khoản của công ty (AccountList), nạp sẵn từ ERP
+condition: >
+  (!#isBlank(#item.debitAccount) and #allAccounts.contains(#item.debitAccount)
+   and !#detailAccounts.contains(#item.debitAccount))
+  or
+  (!#isBlank(#item.creditAccount) and #allAccounts.contains(#item.creditAccount)
+   and !#detailAccounts.contains(#item.creditAccount))
+message: >
+  Dòng {{item.lineNo}}: hạch toán vào tài khoản có tài khoản con (Nợ {{item.debitAccount}} / Có
+  {{item.creditAccount}}); cần dùng tài khoản chi tiết
+evidence:
+  lineNo: "#item.lineNo"
+  debitAccount: "#item.debitAccount"
+  creditAccount: "#item.creditAccount"
+legalRefs: ["Chế độ kế toán doanh nghiệp"]
+ragQuery: "nguyên tắc hạch toán vào tài khoản chi tiết"
+enabled: true
+version: 1

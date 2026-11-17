@@ -86,9 +86,7 @@ class SqlRuleEvaluatorTest {
     assertThat(results).hasSize(1);
     var r = results.get(0);
     assertThat(r.message()).contains("C26TAA-0000123").contains("0101234567").contains("MH00099");
-    assertThat(r.evidence())
-        .containsEntry("duplicateRef", "dup-ref")
-        .containsEntry("duplicateCount", 1);
+    assertThat(r.evidence()).containsEntry("ref", "dup-ref").containsEntry("matchCount", 1);
     assertThat(r.fingerprint())
         .hasSize(64)
         .isEqualTo(evaluator.evaluate(rule, voucher(invoice("0000123"))).get(0).fingerprint());
@@ -142,5 +140,93 @@ class SqlRuleEvaluatorTest {
               BusinessException.class,
               e -> assertThat(e.getCode()).isEqualTo("ERP_SQL_REF_INVALID"));
     }
+  }
+
+  // ---------- ANM_UNIT_PRICE_OUTLIER: truy vấn theo từng dòng ----------
+
+  @Test
+  void perLineRuleQueriesEachEligibleLineAndFlagsOnlyOutliers() {
+    var anm =
+        new RuleLoader()
+            .loadAll().stream()
+                .filter(r -> r.ruleId().equals("ANM_UNIT_PRICE_OUTLIER"))
+                .findFirst()
+                .orElseThrow();
+    var lines =
+        List.of(
+            line(1, "11111111-1111-1111-1111-aaaaaaaaaaaa", "500000"),
+            line(2, "11111111-1111-1111-1111-bbbbbbbbbbbb", "9000000"),
+            line(3, null, "100"), // không có vật tư: bỏ qua
+            line(4, "11111111-1111-1111-1111-cccccccccccc", "0")); // đơn giá 0: bỏ qua
+    var v =
+        new ErpVoucher(
+            REF,
+            COMPANY,
+            ErpEntityType.PURCHASE_INVOICE,
+            210,
+            "MH1",
+            LocalDate.of(2026, 10, 15),
+            null,
+            "d",
+            new ErpPartnerRef("partner-guid", "N", "A", "0101234567"),
+            "VND",
+            BigDecimal.ONE,
+            BigDecimal.TEN,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            true,
+            lines,
+            null);
+    when(erp.queryRule(eq("rule-unit-price-outlier"), anyMap()))
+        .thenAnswer(
+            inv -> {
+              Map<String, Object> p = inv.getArgument(1);
+              return "11111111-1111-1111-1111-bbbbbbbbbbbb".equals(p.get("materialGoodsId"))
+                  ? List.of(
+                      Map.<String, Object>of(
+                          "avgPrice",
+                          new BigDecimal("1000000"),
+                          "stdPrice",
+                          new BigDecimal("50000"),
+                          "n",
+                          8))
+                  : List.<Map<String, Object>>of();
+            });
+
+    var results = evaluator.evaluate(anm, v);
+
+    assertThat(results).hasSize(1);
+    assertThat(results.get(0).message())
+        .contains("Dòng 2")
+        .contains("9000000")
+        .contains("1000000")
+        .contains("8 lần");
+    assertThat(results.get(0).evidenceKey()).isEqualTo("line2");
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, Object>> params = ArgumentCaptor.forClass(Map.class);
+    verify(erp, org.mockito.Mockito.times(2))
+        .queryRule(eq("rule-unit-price-outlier"), params.capture());
+    assertThat(params.getAllValues().get(0))
+        .containsEntry("partnerId", "partner-guid")
+        .containsEntry("k", 3)
+        .containsEntry("minSamples", 5)
+        .containsEntry("sinceDate", java.sql.Date.valueOf(LocalDate.of(2025, 10, 15)));
+  }
+
+  private static vn.edu.uet.erpai.erp.model.ErpJournalLine line(
+      int no, String material, String price) {
+    return new vn.edu.uet.erpai.erp.model.ErpJournalLine(
+        no,
+        "d",
+        "1561",
+        "331",
+        BigDecimal.TEN,
+        BigDecimal.TEN,
+        material,
+        BigDecimal.ONE,
+        new BigDecimal(price),
+        BigDecimal.TEN,
+        BigDecimal.ONE,
+        "1331");
   }
 }

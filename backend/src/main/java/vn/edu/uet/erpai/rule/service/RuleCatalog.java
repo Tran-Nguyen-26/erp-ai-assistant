@@ -35,6 +35,10 @@ public class RuleCatalog {
     return c != null ? c : refresh();
   }
 
+  public java.util.Optional<ActiveRule> find(String ruleId) {
+    return all().stream().filter(a -> a.definition().ruleId().equals(ruleId)).findFirst();
+  }
+
   @Transactional(readOnly = true)
   public List<ActiveRule> refresh() {
     Map<String, RuleDefinition> yaml =
