@@ -1,0 +1,90 @@
+name: erp-ai-assistant
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${APP_DB_NAME:-erpai}
+      POSTGRES_USER: ${APP_DB_USER:-erpai}
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:-erpai_dev}
+    ports: ["${APP_DB_PORT:-5432}:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_DB_USER:-erpai} -d ${APP_DB_NAME:-erpai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama
+    ports: ["11434:11434"]
+    volumes: [ollama-models:/root/.ollama]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    command: ["--model-id", "BAAI/bge-reranker-v2-m3"]
+    ports: ["8081:80"]
+    volumes: [hf-cache:/data]
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-erpai}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-erpai_dev}
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  langfuse-db:
+    profiles: [observability]
+    image: postgres:16
+    environment:
+      POSTGRES_DB: langfuse
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse_dev
+    volumes: [langfuse-pgdata:/var/lib/postgresql/data]
+
+  langfuse:
+    profiles: [observability]
+    image: langfuse/langfuse:2
+    depends_on: [langfuse-db]
+    ports: ["3000:3000"]
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse_dev@langfuse-db:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: dev-only-change-me
+      SALT: dev-only-change-me
+
+  backend:
+    profiles: [app]
+    build: ./backend
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    env_file: .env
+    environment:
+      APP_DB_HOST: postgres
+      RABBITMQ_HOST: rabbitmq
+      OLLAMA_BASE_URL: http://ollama:11434
+      RERANKER_BASE_URL: http://reranker:80
+    ports: ["8080:8080"]
+
+  frontend:
+    profiles: [app]
+    build: ./frontend
+    depends_on: [backend]
+    ports: ["4200:80"]
+
+volumes:
+  pgdata:
+  ollama-models:
+  hf-cache:
+  langfuse-pgdata:

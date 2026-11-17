@@ -1,0 +1,18 @@
+# Secrets & dữ liệu công ty
+.env
+*.bak
+*.dump
+*.mdf
+data/
+eval/reports/*
+!eval/reports/.gitkeep
+# Backend
+backend/target/
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+# IDE
+.idea/
+*.iml
+.vscode/
