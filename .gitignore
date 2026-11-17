@@ -16,3 +16,5 @@ frontend/.angular/
 .idea/
 *.iml
 .vscode/
+# Khảo sát schema DB công ty: chỉ giữ cục bộ
+docs/erp-schema/

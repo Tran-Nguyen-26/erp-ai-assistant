@@ -1,6 +1,6 @@
 # Ánh xạ ERP (SQL Server) → canonical model
 
-> Nguồn: `docs/erp-schema/columns.json` (khảo sát metadata, 501 bảng, schema `dbo`, 2026-11-17).
+> Nguồn: `docs/erp-schema/columns.json` (chỉ lưu cục bộ, không commit — xem `.gitignore`) (khảo sát metadata, 501 bảng, schema `dbo`, 2026-11-17).
 > Trạng thái: **DRAFT** — các mục "Cần xác nhận" chưa được kiểm chứng bằng dữ liệu.
 > Tên cột ERP chỉ được xuất hiện trong `erp/adapter` và `resources/sql/erp/`.
 
