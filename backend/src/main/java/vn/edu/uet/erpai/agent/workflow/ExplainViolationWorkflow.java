@@ -88,6 +88,18 @@ public class ExplainViolationWorkflow {
 
   public ExplanationResponse explain(
       CurrentUser user, UUID violationId, boolean regenerate, boolean withProposal) {
+    return explain(user, violationId, regenerate, withProposal, stage -> {});
+  }
+
+  /**
+   * @param stages nhận tên giai đoạn: retrieving → generating → verifying (dùng cho chế độ SSE)
+   */
+  public ExplanationResponse explain(
+      CurrentUser user,
+      UUID violationId,
+      boolean regenerate,
+      boolean withProposal,
+      java.util.function.Consumer<String> stages) {
     var violation = violations.get(user.companyId(), violationId);
     if (!regenerate) {
       var cached =
@@ -111,6 +123,7 @@ public class ExplainViolationWorkflow {
     LocalDate asOf = voucher.voucherDate() != null ? voucher.voucherDate() : LocalDate.now();
 
     var query = buildQuery(rule.ragQuery(), rule.legalRefs(), violation);
+    stages.accept("retrieving");
     var retrieved = knowledge.search(query, asOf, null);
 
     ViolationExplanation saved;
@@ -118,6 +131,7 @@ public class ExplainViolationWorkflow {
     if (!retrieved.sufficient()) {
       saved = unsupported(violation, retrieved, start);
     } else {
+      stages.accept("generating");
       var generated = generate(violation, voucher, rule.legalRefs(), retrieved, start);
       saved = generated.explanation();
       fix = generated.fix();
@@ -134,6 +148,7 @@ public class ExplainViolationWorkflow {
             violationId.toString(),
             Map.of("supportStatus", saved.getSupportStatus().name(), "model", saved.getModel())));
 
+    stages.accept("verifying");
     ProposalResponse proposal = null;
     String skipped = null;
     if (withProposal) {

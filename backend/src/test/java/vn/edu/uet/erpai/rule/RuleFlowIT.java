@@ -317,4 +317,44 @@ class RuleFlowIT extends AbstractPostgresIT {
     org.assertj.core.api.Assertions.assertThat(body.get("violations").findValuesAsText("ruleId"))
         .doesNotContain("XDOC_DUPLICATE_INVOICE");
   }
+
+  @Test
+  void severitySortFollowsSeverityOrderNotAlphabet() throws Exception {
+    var company = "fbfbfbfb-0000-0000-0000-0000000000f2";
+    var acc = login("acc_sort", Role.ACCOUNTANT, company);
+    // thiếu số chứng từ (ERROR) + MST sai định dạng (WARNING) trên cùng một chứng từ
+    var v =
+        new ErpVoucher(
+            "77777777-7777-7777-7777-777777777777",
+            company,
+            ErpEntityType.PURCHASE_INVOICE,
+            210,
+            " ",
+            LocalDate.of(2026, 10, 15),
+            LocalDate.of(2026, 10, 15),
+            "d",
+            new ErpPartnerRef("p", "N", "A", "12"),
+            "VND",
+            BigDecimal.ONE,
+            BigDecimal.TEN,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            true,
+            List.of(),
+            null);
+    when(erp.getVoucher(any(), anyString(), anyString())).thenReturn(v);
+    mvc.perform(
+            post("/api/v1/reviews/check")
+                .header("Authorization", acc)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"entityType\":\"PURCHASE_INVOICE\",\"entityRef\":\"77777777-7777-7777-7777-777777777777\"}"))
+        .andExpect(status().isOk());
+
+    mvc.perform(get("/api/v1/violations?sort=severity,asc").header("Authorization", acc))
+        .andExpect(jsonPath("$.items[0].severity").value("ERROR"))
+        .andExpect(jsonPath("$.items[1].severity").value("WARNING"));
+    mvc.perform(get("/api/v1/violations?sort=severity,desc").header("Authorization", acc))
+        .andExpect(jsonPath("$.items[0].severity").value("WARNING"));
+  }
 }

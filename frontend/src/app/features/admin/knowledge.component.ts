@@ -77,6 +77,9 @@ import { KnowledgeDocumentResponse, RetrievalResult } from '../../core/models/ad
               <td>
                 @if (auth.hasRole('ADMIN')) {
                   <button mat-button (click)="reindex(d)">Nạp lại</button>
+                  @if (d.status !== 'ARCHIVED') {
+                    <button mat-button (click)="archive(d)">Lưu trữ</button>
+                  }
                 }
               </td>
             </tr>
@@ -190,6 +193,16 @@ export class KnowledgeComponent implements OnInit, OnDestroy {
     this.api
       .reindex(d.id)
       .subscribe({ next: () => this.load(), error: (e) => this.toast(errorMessage(e)) });
+  }
+
+  protected archive(d: KnowledgeDocumentResponse): void {
+    if (!window.confirm(`Lưu trữ "${d.title}"? Tài liệu sẽ không còn được dùng để trả lời.`)) {
+      return;
+    }
+    this.api.archiveDocument(d.id).subscribe({
+      next: () => this.load(),
+      error: (e) => this.toast(errorMessage(e)),
+    });
   }
 
   protected search(): void {

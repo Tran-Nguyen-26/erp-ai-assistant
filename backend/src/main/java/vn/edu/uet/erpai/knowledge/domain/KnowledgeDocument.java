@@ -113,6 +113,29 @@ public class KnowledgeDocument {
     updatedAt = OffsetDateTime.now();
   }
 
+  /** Cập nhật metadata; ngày hiệu lực có tác dụng ngay với truy xuất, không cần nạp lại. */
+  public void updateMetadata(
+      String title,
+      String docNumber,
+      DocType docType,
+      LocalDate issuedDate,
+      LocalDate effectiveFrom,
+      LocalDate effectiveTo,
+      String sourceUrl) {
+    this.title = title;
+    this.docNumber = docNumber;
+    this.docType = docType;
+    this.issuedDate = issuedDate;
+    this.effectiveFrom = effectiveFrom;
+    this.effectiveTo = effectiveTo;
+    this.sourceUrl = sourceUrl;
+  }
+
+  public void archive() {
+    status = Status.ARCHIVED;
+    chunkCount = 0;
+  }
+
   public void markIngesting() {
     status = Status.INGESTING;
     errorMessage = null;

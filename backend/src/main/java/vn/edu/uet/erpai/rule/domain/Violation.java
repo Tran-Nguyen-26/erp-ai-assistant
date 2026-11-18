@@ -53,6 +53,11 @@ public class Violation {
   @Column(nullable = false)
   private Severity severity;
 
+  /** Thứ hạng để sắp xếp theo mức độ (ERROR → WARNING → INFO), không phải theo chữ cái. */
+  @org.hibernate.annotations.Formula(
+      "CASE severity WHEN 'ERROR' THEN 0 WHEN 'WARNING' THEN 1 ELSE 2 END")
+  private int severityRank;
+
   @Enumerated(EnumType.STRING)
   @Column(nullable = false)
   private ViolationStatus status = ViolationStatus.OPEN;

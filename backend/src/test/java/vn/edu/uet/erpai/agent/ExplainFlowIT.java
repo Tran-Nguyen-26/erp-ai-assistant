@@ -227,6 +227,25 @@ class ExplainFlowIT extends AbstractPostgresIT {
     assertThat(none.get("explanation").asText()).contains("Không tìm thấy căn cứ");
     assertThat(org.mockito.Mockito.mockingDetails(llm).getInvocations().size()).isEqualTo(before);
 
+    // 4b) chế độ stream: stage rồi result (Accept: text/event-stream)
+    var sse =
+        mvc.perform(
+                post("/api/v1/violations/" + violationId + "/explain?regenerate=true")
+                    .header("Authorization", token)
+                    .accept(MediaType.TEXT_EVENT_STREAM))
+            .andExpect(
+                org.springframework.test.web.servlet.result.MockMvcResultMatchers.request()
+                    .asyncStarted())
+            .andReturn();
+    sse.getAsyncResult(15_000);
+    var body = sse.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+    assertThat(body)
+        .contains("event:stage")
+        .contains("\"stage\":\"retrieving\"")
+        .contains("event:result");
+    assertThat(body.indexOf("event:stage")).isLessThan(body.indexOf("event:result"));
+    assertThat(body).contains("\"supportStatus\":\"UNSUPPORTED\"");
+
     // 5) violation của công ty khác → 404
     mvc.perform(
             post("/api/v1/violations/" + UUID.randomUUID() + "/explain")

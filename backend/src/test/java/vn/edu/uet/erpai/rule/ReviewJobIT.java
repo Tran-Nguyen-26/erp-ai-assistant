@@ -331,4 +331,45 @@ class ReviewJobIT {
         .andExpect(status().isUnprocessableEntity())
         .andExpect(jsonPath("$.code").value("RULE_ENTITY_TYPE_UNSUPPORTED"));
   }
+
+  @Test
+  void jobProgressCanBeStreamedUntilItCompletes() throws Exception {
+    var chief = login("j_chief4", Role.CHIEF_ACCOUNTANT);
+    var acc = login("j_acc4", Role.ACCOUNTANT);
+    doReturn(3L).when(erp).countVouchers(any(), anyString(), any(), any());
+    doReturn(List.of("e-1", "e-2", "e-3"))
+        .when(erp)
+        .listVoucherIds(any(), anyString(), any(), any(), anyLong(), anyInt());
+    doAnswer(inv -> voucher(inv.getArgument(2), "0101234567"))
+        .when(erp)
+        .getVoucher(any(), anyString(), anyString());
+    var id = createJob(chief, "2026-05-01", "2026-05-31", 202).get("id").asText();
+
+    var sse =
+        mvc.perform(
+                get("/api/v1/review-jobs/" + id + "/events")
+                    .header("Authorization", chief)
+                    .accept(MediaType.TEXT_EVENT_STREAM))
+            .andExpect(
+                org.springframework.test.web.servlet.result.MockMvcResultMatchers.request()
+                    .asyncStarted())
+            .andReturn();
+    sse.getAsyncResult(30_000);
+    var body = sse.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+    assertThat(body)
+        .contains("event:completed")
+        .contains("\"status\":\"COMPLETED\"")
+        .contains("\"processedDocuments\":3");
+    assertThat(body.indexOf("event:progress"))
+        .isGreaterThanOrEqualTo(0)
+        .isLessThan(body.indexOf("event:completed"));
+
+    // job không tồn tại → 404 trước khi mở stream
+    mvc.perform(
+            get("/api/v1/review-jobs/" + java.util.UUID.randomUUID() + "/events")
+                .header("Authorization", acc)
+                .accept(MediaType.TEXT_EVENT_STREAM))
+        .andExpect(status().isNotFound());
+  }
 }

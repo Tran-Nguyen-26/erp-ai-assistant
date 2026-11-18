@@ -5,9 +5,12 @@ import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -248,5 +251,76 @@ class KnowledgeFlowIT extends AbstractPostgresIT {
     var none = search(accountant, "hóa đơn điện tử mã số thuế người bán", "2026-10-15");
     assertThat(none.get("sufficient").asBoolean()).isFalse();
     assertThat(none.get("chunks")).isEmpty();
+  }
+
+  @Test
+  void adminCanEditMetadataAndArchiveDocuments() throws Exception {
+    var admin = login("kadmin2", Role.ADMIN);
+    var accountant = login("kacc2", Role.ACCOUNTANT);
+    when(reranker.rerank(anyString(), anyList()))
+        .thenAnswer(
+            inv ->
+                ((java.util.List<String>) inv.getArgument(1))
+                    .stream().mapToDouble(t -> 0.9).toArray());
+    var doc =
+        upload(
+            admin,
+            "meta.txt",
+            "Điều 31. Quy định mẫu về khấu hao tài sản\n1. Tài sản cố định được khấu hao đều.",
+            "LUAT-META",
+            "2025-01-01",
+            null,
+            202);
+    var id = doc.get("id").asText();
+    await().atMost(15, TimeUnit.SECONDS).until(() -> statusOf(admin, id).equals("READY"));
+    assertThat(search(accountant, "khấu hao tài sản cố định", "2026-06-01").get("chunks"))
+        .isNotEmpty();
+
+    // chỉ ADMIN được sửa/lưu trữ
+    mvc.perform(
+            patch("/api/v1/knowledge/documents/" + id)
+                .header("Authorization", accountant)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"x\"}"))
+        .andExpect(status().isForbidden());
+    mvc.perform(delete("/api/v1/knowledge/documents/" + id).header("Authorization", accountant))
+        .andExpect(status().isForbidden());
+
+    // khoảng hiệu lực sai bị từ chối; đổi hiệu lực về quá khứ có tác dụng ngay, không cần nạp lại
+    mvc.perform(
+            patch("/api/v1/knowledge/documents/" + id)
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"effectiveTo\":\"2024-01-01\"}"))
+        .andExpect(status().isUnprocessableEntity());
+    mvc.perform(
+            patch("/api/v1/knowledge/documents/" + id)
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Luật mẫu (sửa)\",\"effectiveTo\":\"2026-01-01\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title").value("Luật mẫu (sửa)"))
+        .andExpect(jsonPath("$.effectiveTo").value("2026-01-01"))
+        .andExpect(jsonPath("$.docNumber").value("LUAT-META"));
+    assertThat(search(accountant, "khấu hao tài sản cố định", "2026-06-01").get("chunks"))
+        .isEmpty();
+    assertThat(search(accountant, "khấu hao tài sản cố định", "2025-06-01").get("chunks"))
+        .isNotEmpty();
+
+    // lưu trữ: ARCHIVED, xóa chunk, không còn truy xuất
+    mvc.perform(delete("/api/v1/knowledge/documents/" + id).header("Authorization", admin))
+        .andExpect(status().isNoContent());
+    assertThat(statusOf(admin, id)).isEqualTo("ARCHIVED");
+    assertThat(
+            mapper.readTree(
+                mvc.perform(
+                        get("/api/v1/knowledge/documents/" + id + "/chunks")
+                            .header("Authorization", admin))
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString()))
+        .isEmpty();
+    assertThat(search(accountant, "khấu hao tài sản cố định", "2025-06-01").get("chunks"))
+        .isEmpty();
   }
 }

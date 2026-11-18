@@ -64,6 +64,11 @@ export class AdminApiService {
     );
   }
 
+  /** Lưu trữ tài liệu: chuyển ARCHIVED và xóa chunk. */
+  archiveDocument(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/knowledge/documents/${id}`);
+  }
+
   searchKnowledge(query: string, asOf?: string): Observable<RetrievalResult> {
     return this.http.post<RetrievalResult>(`${this.base}/knowledge/search`, {
       query,

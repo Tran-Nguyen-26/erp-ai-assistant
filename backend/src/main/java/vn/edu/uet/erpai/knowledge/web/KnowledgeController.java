@@ -12,7 +12,9 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -110,6 +112,21 @@ public class KnowledgeController {
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
     return service.chunks(id, page, size);
+  }
+
+  /** Sửa metadata (title, docNumber, docType, ngày, nguồn); trường không gửi giữ nguyên. */
+  @PatchMapping("/documents/{id}")
+  @PreAuthorize("hasRole('ADMIN')")
+  public DocumentResponse update(
+      @PathVariable UUID id, @RequestBody KnowledgeService.CreateRequest req) {
+    return service.update(SecurityUtils.currentUser(), id, req);
+  }
+
+  @DeleteMapping("/documents/{id}")
+  @PreAuthorize("hasRole('ADMIN')")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void archive(@PathVariable UUID id) {
+    service.archive(SecurityUtils.currentUser(), id);
   }
 
   @PostMapping("/documents/{id}/reindex")

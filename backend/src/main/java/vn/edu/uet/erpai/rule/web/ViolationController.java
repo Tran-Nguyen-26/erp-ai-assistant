@@ -132,21 +132,24 @@ public class ViolationController {
     return result;
   }
 
-  /** sort=field,dir (whitelist). Mặc định detectedAt giảm dần. */
+  /**
+   * sort=field,dir (nhiều lần được). Spring tách giá trị theo dấu phẩy nên {@code
+   * sort=severity,asc} đến dưới dạng ["severity","asc"]: mỗi "asc"/"desc" áp cho trường đứng ngay
+   * trước. Chỉ nhận trường trong danh sách cho phép; "severity" sắp theo thứ hạng ERROR → WARNING →
+   * INFO.
+   */
   private static Sort sort(List<String> raw) {
-    if (raw == null || raw.isEmpty()) {
-      return Sort.by(Sort.Direction.DESC, "detectedAt");
-    }
     var orders = new java.util.ArrayList<Sort.Order>();
-    for (var s : raw) {
-      var parts = s.split(",");
-      if (SORTABLE.contains(parts[0])) {
-        orders.add(
-            new Sort.Order(
-                parts.length > 1 && parts[1].equalsIgnoreCase("asc")
-                    ? Sort.Direction.ASC
-                    : Sort.Direction.DESC,
-                parts[0]));
+    if (raw != null) {
+      for (int i = 0; i < raw.size(); i++) {
+        var field = raw.get(i).strip();
+        if (!SORTABLE.contains(field)) {
+          continue;
+        }
+        var next = i + 1 < raw.size() ? raw.get(i + 1).strip() : "";
+        boolean asc = next.equalsIgnoreCase("asc");
+        var property = field.equals("severity") ? "severityRank" : field;
+        orders.add(new Sort.Order(asc ? Sort.Direction.ASC : Sort.Direction.DESC, property));
       }
     }
     return orders.isEmpty() ? Sort.by(Sort.Direction.DESC, "detectedAt") : Sort.by(orders);

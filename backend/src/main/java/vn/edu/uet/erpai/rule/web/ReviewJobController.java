@@ -23,9 +23,12 @@ import vn.edu.uet.erpai.rule.review.ReviewJobService;
 public class ReviewJobController {
 
   private final ReviewJobService service;
+  private final vn.edu.uet.erpai.rule.review.ReviewJobEvents events;
 
-  public ReviewJobController(ReviewJobService service) {
+  public ReviewJobController(
+      ReviewJobService service, vn.edu.uet.erpai.rule.review.ReviewJobEvents events) {
     this.service = service;
+    this.events = events;
   }
 
   @PostMapping
@@ -61,6 +64,17 @@ public class ReviewJobController {
   @GetMapping("/{id}")
   public ReviewJobResponse get(@PathVariable UUID id) {
     return service.get(SecurityUtils.currentUser().companyId(), id);
+  }
+
+  /** Stream tiến độ (SSE): progress, completed, failed. */
+  @GetMapping(
+      value = "/{id}/events",
+      produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
+  public org.springframework.web.servlet.mvc.method.annotation.SseEmitter events(
+      @PathVariable UUID id) {
+    var companyId = SecurityUtils.currentUser().companyId();
+    service.get(companyId, id); // 404 trước khi mở stream
+    return events.stream(companyId, id);
   }
 
   @PostMapping("/{id}/cancel")

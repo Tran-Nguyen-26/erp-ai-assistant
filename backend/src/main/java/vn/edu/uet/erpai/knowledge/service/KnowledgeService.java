@@ -138,6 +138,41 @@ public class KnowledgeService {
         (long) Math.max(page, 0) * Math.min(Math.max(size, 1), 100));
   }
 
+  /** Sửa metadata (null = giữ nguyên). Đổi ngày hiệu lực có tác dụng ngay với truy xuất. */
+  @Transactional
+  public DocumentResponse update(CurrentUser user, UUID id, CreateRequest req) {
+    var d = find(id);
+    var from = req.effectiveFrom() != null ? req.effectiveFrom() : d.getEffectiveFrom();
+    var to = req.effectiveTo() != null ? req.effectiveTo() : d.getEffectiveTo();
+    if (from != null && to != null && !to.isAfter(from)) {
+      throw new BusinessException(
+          "KNOWLEDGE_INVALID_EFFECTIVE_RANGE", "effectiveTo phải sau effectiveFrom");
+    }
+    d.updateMetadata(
+        req.title() != null && !req.title().isBlank() ? req.title() : d.getTitle(),
+        req.docNumber() != null ? req.docNumber() : d.getDocNumber(),
+        req.docType() != null ? req.docType() : d.getDocType(),
+        req.issuedDate() != null ? req.issuedDate() : d.getIssuedDate(),
+        from,
+        to,
+        req.sourceUrl() != null ? req.sourceUrl() : d.getSourceUrl());
+    audit(user, "KNOWLEDGE_DOCUMENT_UPDATED", id);
+    return DocumentResponse.from(d);
+  }
+
+  /** Lưu trữ: chuyển ARCHIVED và xóa chunk (tài liệu không còn được truy xuất). */
+  @Transactional
+  public void archive(CurrentUser user, UUID id) {
+    var d = find(id);
+    if (d.getStatus() == Status.INGESTING) {
+      throw new BusinessException(
+          "KNOWLEDGE_ALREADY_INGESTING", "Tài liệu đang được nạp", HttpStatus.CONFLICT);
+    }
+    jdbc.update("DELETE FROM knowledge_chunk WHERE document_id = ?", id);
+    d.archive();
+    audit(user, "KNOWLEDGE_DOCUMENT_ARCHIVED", id);
+  }
+
   @Transactional
   public DocumentResponse reindex(CurrentUser user, UUID id) {
     var doc = find(id);
