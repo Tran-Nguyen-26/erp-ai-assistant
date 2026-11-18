@@ -3,7 +3,7 @@ name: "Hạch toán vào tài khoản tổng hợp"
 group: DOC
 severity: WARNING
 entityType: PURCHASE_INVOICE
-entityTypes: [PURCHASE_INVOICE, SALES_INVOICE, PAYMENT]
+entityTypes: [PURCHASE_INVOICE, SALES_INVOICE, PAYMENT, RECEIPT, BANK_DEBIT, BANK_CREDIT, PURCHASE_RETURN, SALES_RETURN]
 evaluator: SPEL
 forEach: lines
 needs: [ACCOUNTS]      # danh mục tài khoản của công ty (AccountList), nạp sẵn từ ERP

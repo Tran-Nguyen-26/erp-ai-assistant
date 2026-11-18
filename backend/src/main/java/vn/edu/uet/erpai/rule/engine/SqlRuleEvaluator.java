@@ -103,6 +103,9 @@ public class SqlRuleEvaluator {
                             .minusMonths(
                                 ((Number) rule.params().getOrDefault("lookbackMonths", 12))
                                     .longValue()));
+            case "voucherDate" ->
+                v.voucherDate() == null ? null : java.sql.Date.valueOf(v.voucherDate());
+            case "debtPaymentAmount" -> debtPayment(v);
             case "lineNo" -> line == null ? null : line.lineNo();
             case "materialGoodsId" -> line == null ? null : line.materialGoodsId();
             case "unitPrice" -> line == null ? null : line.unitPrice();
@@ -119,6 +122,20 @@ public class SqlRuleEvaluator {
       out.put(name, value);
     }
     return out;
+  }
+
+  /**
+   * Tổng số tiền các dòng ghi Nợ tài khoản phải trả người bán (331*); không có → null (rule không
+   * áp dụng).
+   */
+  private static BigDecimal debtPayment(ErpVoucher v) {
+    var sum =
+        v.lines().stream()
+            .filter(l -> l.debitAccount() != null && l.debitAccount().startsWith("331"))
+            .map(ErpJournalLine::amount)
+            .filter(java.util.Objects::nonNull)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    return sum.signum() > 0 ? sum : null;
   }
 
   private static boolean isRequired(String name) {

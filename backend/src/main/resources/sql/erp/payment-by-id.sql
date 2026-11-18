@@ -1,8 +1,9 @@
--- Phiếu chi tiền mặt theo ID (PK = ID).
+-- Phiếu chi tiền mặt (MCPayment). Không có index theo ngày: quét theo CompanyID, luôn phân trang.
 SELECT h.ID, h.CompanyID, h.TypeID, h.[Date], h.PostedDate, h.NoFBook, h.Reason,
-       h.CurrencyID, h.ExchangeRate, h.TotalAmount, h.TotalVATAmount,
-       h.Recorded, h.AccountingObjectID, h.AccountingObjectName, h.TaxCode,
-       ao.AccountingObjectCode AS PartnerCode
+       h.CurrencyID, h.ExchangeRate, h.TotalAmount, h.TotalVATAmount, CAST(0 AS DECIMAL(18,2)) AS TotalDiscountAmount,
+       h.Recorded, h.AccountingObjectID, h.AccountingObjectName,
+       h.TaxCode AS PartnerTaxCode, ao.AccountingObjectCode AS PartnerCode,
+       CAST(NULL AS NVARCHAR(100)) AS InvoiceTemplate, CAST(NULL AS NVARCHAR(100)) AS InvoiceSeries, CAST(NULL AS NVARCHAR(100)) AS InvoiceNo, CAST(NULL AS DATETIME) AS InvoiceDate, CAST(NULL AS NVARCHAR(100)) AS PaymentMethod
 FROM dbo.MCPayment h
 LEFT JOIN dbo.AccountingObject ao ON ao.ID = h.AccountingObjectID
 WHERE h.CompanyID = :companyId

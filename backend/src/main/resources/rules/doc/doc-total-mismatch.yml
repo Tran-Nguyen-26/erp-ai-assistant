@@ -1,0 +1,23 @@
+ruleId: DOC_TOTAL_MISMATCH
+name: "Tổng các dòng không khớp tiền hàng của hóa đơn"
+group: DOC
+severity: ERROR
+entityType: PURCHASE_INVOICE
+entityTypes: [PURCHASE_INVOICE, SALES_INVOICE, PURCHASE_RETURN, SALES_RETURN]
+evaluator: SPEL
+params:
+  tolerance: 1          # lệch làm tròn cho phép (đồng)
+# TẮT mặc định: với chứng từ ERP, tiền hàng của hóa đơn được suy ra từ TotalAmount − thuế + chiết khấu, nên rule
+# chỉ đúng nếu TotalAmount ĐÃ GỒM thuế (chưa xác nhận bằng dữ liệu thật — xem docs/erp-mapping.md §8).
+condition: >
+  #entity.invoice != null and !#entity.lines.isEmpty()
+  and #abs(#sum(#entity.lines.![amount]) - #entity.invoice.amount) > #params['tolerance']
+message: >
+  Tổng thành tiền các dòng {{lineTotal}} không khớp tiền hàng của hóa đơn {{invoiceAmount}}
+evidence:
+  lineTotal: "#sum(#entity.lines.![amount])"
+  invoiceAmount: "#entity.invoice.amount"
+legalRefs: ["Nghị định về hóa đơn, chứng từ"]
+ragQuery: "nội dung bắt buộc trên hóa đơn tổng tiền thanh toán"
+enabled: false
+version: 1

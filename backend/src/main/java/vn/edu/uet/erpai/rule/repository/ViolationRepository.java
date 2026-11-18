@@ -33,6 +33,38 @@ public interface ViolationRepository
   @Query("select v.rule.id, count(v) from Violation v where v.status in ?1 group by v.rule.id")
   List<Object[]> countByRule(Collection<ViolationStatus> statuses);
 
+  /** Theo chứng từ: số vi phạm đang mở và thứ hạng nặng nhất (0 = ERROR). */
+  @Query(
+      "select v.entityRef, count(v), min(v.severityRank) from Violation v where v.companyId = ?1"
+          + " and v.entityType = ?2 and v.entityRef in ?3 and v.status in ?4 group by v.entityRef")
+  List<Object[]> openSummaryByRefs(
+      String companyId,
+      String entityType,
+      Collection<String> refs,
+      Collection<ViolationStatus> statuses);
+
+  @Query(
+      "select v.entityRef from Violation v where v.companyId = ?1 and v.entityType = ?2"
+          + " and v.status in ?3 and (v.entityDate is null or (v.entityDate >= ?4 and v.entityDate <= ?5))"
+          + " group by v.entityRef order by max(v.detectedAt) desc, v.entityRef")
+  List<String> openEntityRefs(
+      String companyId,
+      String entityType,
+      Collection<ViolationStatus> statuses,
+      java.time.LocalDate from,
+      java.time.LocalDate to,
+      Pageable pageable);
+
+  @Query(
+      "select count(distinct v.entityRef) from Violation v where v.companyId = ?1 and v.entityType = ?2"
+          + " and v.status in ?3 and (v.entityDate is null or (v.entityDate >= ?4 and v.entityDate <= ?5))")
+  long countOpenEntityRefs(
+      String companyId,
+      String entityType,
+      Collection<ViolationStatus> statuses,
+      java.time.LocalDate from,
+      java.time.LocalDate to);
+
   @Query(
       "select v.severity, count(v) from Violation v where v.reviewJobId = ?1 group by v.severity")
   List<Object[]> countSeverityByJob(UUID reviewJobId);

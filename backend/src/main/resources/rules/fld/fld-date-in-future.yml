@@ -1,0 +1,22 @@
+ruleId: FLD_DATE_IN_FUTURE
+name: "Ngày chứng từ lớn hơn ngày hiện tại"
+group: FLD
+severity: WARNING
+entityType: PURCHASE_INVOICE
+entityTypes: [PURCHASE_INVOICE, SALES_INVOICE, PAYMENT, RECEIPT, BANK_DEBIT, BANK_CREDIT, PURCHASE_RETURN, SALES_RETURN]
+evaluator: SPEL
+params:
+  maxFutureDays: 0      # cho phép ngày chứng từ vượt quá hôm nay tối đa bấy nhiêu ngày
+# Ghi chú: kiểm tra "ngày ngoài kỳ kế toán đang mở" cần dữ liệu kỳ khóa sổ; schema khảo sát (LockAccount) chỉ có
+# cột ID nên chưa làm được. Rule này chỉ bắt ngày ở tương lai — lỗi nhập liệu phổ biến (nhầm năm/tháng).
+condition: >
+  #entity.voucherDate != null and #daysFromToday(#entity.voucherDate) > #params['maxFutureDays']
+message: >
+  Ngày chứng từ {{entity.voucherDate}} lớn hơn ngày hiện tại
+evidence:
+  voucherDate: "#entity.voucherDate"
+  daysAhead: "#daysFromToday(#entity.voucherDate)"
+legalRefs: []
+ragQuery: "ngày lập chứng từ kế toán"
+enabled: true
+version: 1

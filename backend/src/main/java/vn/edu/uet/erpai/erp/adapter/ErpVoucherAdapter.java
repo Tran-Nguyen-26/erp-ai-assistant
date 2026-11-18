@@ -18,6 +18,7 @@ import vn.edu.uet.erpai.erp.model.ErpJournalLine;
 import vn.edu.uet.erpai.erp.model.ErpPage;
 import vn.edu.uet.erpai.erp.model.ErpPartnerRef;
 import vn.edu.uet.erpai.erp.model.ErpVoucher;
+import vn.edu.uet.erpai.erp.model.VoucherFilter;
 
 /**
  * Adapter SQL Server → canonical model. ĐÂY là nơi duy nhất biết tên cột ERP. Chỉ SELECT; phải được
@@ -83,11 +84,19 @@ public class ErpVoucherAdapter {
 
   public ErpPage<ErpVoucher> listPurchaseInvoices(
       String companyId, LocalDate from, LocalDate toInclusive, int page, int size) {
+    return listPurchaseInvoices(companyId, from, toInclusive, page, size, VoucherFilter.NONE);
+  }
+
+  public ErpPage<ErpVoucher> listPurchaseInvoices(
+      String companyId,
+      LocalDate from,
+      LocalDate toInclusive,
+      int page,
+      int size,
+      VoucherFilter filter) {
     var params =
-        new MapSqlParameterSource("companyId", companyId)
-            .addValue("periodFrom", java.sql.Date.valueOf(from))
-            .addValue("periodToExclusive", java.sql.Date.valueOf(toInclusive.plusDays(1)))
-            .addValue("typeIds", PURCHASE_TYPE_IDS)
+        filter
+            .applyTo(periodParams(companyId, from, toInclusive))
             .addValue("offset", (long) page * size)
             .addValue("size", size);
     long total = jdbc.queryForObject(sql.load("purchase-invoice-count"), params, Long.class);
@@ -97,7 +106,9 @@ public class ErpVoucherAdapter {
 
   public long countPurchaseInvoices(String companyId, LocalDate from, LocalDate toInclusive) {
     return jdbc.queryForObject(
-        sql.load("purchase-invoice-count"), periodParams(companyId, from, toInclusive), Long.class);
+        sql.load("purchase-invoice-count"),
+        VoucherFilter.NONE.applyTo(periodParams(companyId, from, toInclusive)),
+        Long.class);
   }
 
   public List<String> listPurchaseInvoiceIds(

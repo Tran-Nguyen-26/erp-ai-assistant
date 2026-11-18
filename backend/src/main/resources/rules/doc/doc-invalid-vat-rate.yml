@@ -1,0 +1,24 @@
+ruleId: DOC_INVALID_VAT_RATE
+name: "Thuế suất GTGT không thuộc danh mục hợp lệ"
+group: DOC
+severity: WARNING
+entityType: PURCHASE_INVOICE
+entityTypes: [PURCHASE_INVOICE, SALES_INVOICE, PURCHASE_RETURN, SALES_RETURN]
+evaluator: SPEL
+forEach: lines
+params:
+  validRates: "0,5,8,10"   # danh mục thuế suất (%) — cấu hình theo quy định hiện hành
+  rateDivisor: 1           # ERP lưu % (10) → 1; nếu lưu phân số (0.1) đặt 0.01
+# TẮT mặc định: chưa xác nhận đơn vị của VATRate và giá trị đặc biệt (KCT/KKKNT) trong ERP.
+condition: >
+  #item.vatRate >= 0
+  and !(',' + #params['validRates'] + ',').contains(',' + (#item.vatRate / #params['rateDivisor']).stripTrailingZeros().toPlainString() + ',')
+message: >
+  Dòng {{item.lineNo}}: thuế suất {{item.vatRate}} không thuộc danh mục hợp lệ ({{params.validRates}})
+evidence:
+  lineNo: "#item.lineNo"
+  vatRate: "#item.vatRate"
+legalRefs: ["Luật Thuế giá trị gia tăng"]
+ragQuery: "các mức thuế suất thuế giá trị gia tăng"
+enabled: false
+version: 1

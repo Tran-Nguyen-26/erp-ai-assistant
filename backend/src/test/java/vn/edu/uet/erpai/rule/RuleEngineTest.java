@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static vn.edu.uet.erpai.rule.RuleTestData.line;
 import static vn.edu.uet.erpai.rule.RuleTestData.voucher;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -339,5 +340,146 @@ class RuleEngineTest {
             java.math.BigDecimal.ZERO,
             amount,
             method));
+  }
+
+  // ---------- rule bổ sung (giai đoạn 3) ----------
+
+  private static vn.edu.uet.erpai.erp.model.ErpVoucher onDate(
+      LocalDate date, List<vn.edu.uet.erpai.erp.model.ErpJournalLine> lines) {
+    var base = voucher("MH1", "0101234567", lines);
+    return new vn.edu.uet.erpai.erp.model.ErpVoucher(
+        base.ref(),
+        base.companyId(),
+        base.entityType(),
+        base.voucherTypeId(),
+        base.voucherNo(),
+        date,
+        date,
+        base.description(),
+        base.partner(),
+        "VND",
+        java.math.BigDecimal.ONE,
+        base.totalAmount(),
+        base.totalVatAmount(),
+        base.totalDiscountAmount(),
+        true,
+        lines,
+        null);
+  }
+
+  @Test
+  void futureDatedVouchersAreFlaggedWithinTheConfiguredTolerance() {
+    var rule = rule("FLD_DATE_IN_FUTURE");
+    var evaluator = new SpelRuleEvaluator();
+    assertThat(evaluator.evaluate(rule, onDate(LocalDate.now().plusDays(5), List.of()))).hasSize(1);
+    assertThat(evaluator.evaluate(rule, onDate(LocalDate.now(), List.of()))).isEmpty();
+    assertThat(evaluator.evaluate(rule, onDate(LocalDate.now().minusYears(3), List.of())))
+        .isEmpty(); // quá khứ không bị coi là lỗi
+    assertThat(evaluator.evaluate(rule, onDate(null, List.of()))).isEmpty();
+    var tolerant = rule.withParams(Map.of("maxFutureDays", 7));
+    assertThat(evaluator.evaluate(tolerant, onDate(LocalDate.now().plusDays(5), List.of())))
+        .isEmpty();
+    assertThat(evaluator.evaluate(tolerant, onDate(LocalDate.now().plusDays(8), List.of())))
+        .hasSize(1);
+  }
+
+  @Test
+  void rulesThatDependOnUnconfirmedAssumptionsAreDisabledByDefault() {
+    for (var id :
+        List.of(
+            "DOC_TOTAL_MISMATCH",
+            "DOC_INVALID_VAT_RATE",
+            "XDOC_PAYMENT_EXCEEDS_DEBT",
+            "DOC_VAT_AMOUNT_MISMATCH",
+            "REG_CASH_PAYMENT_THRESHOLD")) {
+      assertThat(rule(id).isEnabled()).as(id).isFalse();
+    }
+    for (var id :
+        List.of(
+            "FLD_DATE_IN_FUTURE",
+            "FLD_TAX_CODE_FORMAT",
+            "DOC_ACCOUNT_NOT_DETAIL",
+            "XDOC_DUPLICATE_INVOICE")) {
+      assertThat(rule(id).isEnabled()).as(id).isTrue();
+    }
+  }
+
+  @Test
+  void totalMismatchComparesLineTotalWithTheInvoiceAmount() {
+    var rule = rule("DOC_TOTAL_MISMATCH");
+    var evaluator = new SpelRuleEvaluator();
+    var lines = List.of(line(1, "6000000", "10", "600000"), line(2, "4000000", "10", "400000"));
+    // hóa đơn: tiền hàng 10.000.000 (= 11.000.000 − 1.000.000) khớp tổng dòng
+    var ok = withInvoice("BANK_TRANSFER", "11000000");
+    var okVoucher =
+        new vn.edu.uet.erpai.erp.model.ErpVoucher(
+            ok.ref(),
+            ok.companyId(),
+            ok.entityType(),
+            210,
+            "MH1",
+            ok.voucherDate(),
+            ok.postedDate(),
+            "d",
+            ok.partner(),
+            "VND",
+            java.math.BigDecimal.ONE,
+            new java.math.BigDecimal("11000000"),
+            new java.math.BigDecimal("1000000"),
+            java.math.BigDecimal.ZERO,
+            true,
+            lines,
+            new vn.edu.uet.erpai.erp.model.ErpInvoice(
+                "1",
+                "S",
+                "1",
+                ok.voucherDate(),
+                "0101234567",
+                "A",
+                new java.math.BigDecimal("10000000"),
+                new java.math.BigDecimal("1000000"),
+                java.math.BigDecimal.ZERO,
+                new java.math.BigDecimal("11000000"),
+                "UNKNOWN"));
+    assertThat(evaluator.evaluate(rule, okVoucher)).isEmpty();
+
+    var bad =
+        okVoucher.withLines(
+            List.of(line(1, "6000000", "10", "600000"), line(2, "3000000", "10", "300000")),
+            okVoucher.invoice());
+    var r = evaluator.evaluate(rule, bad);
+    assertThat(r).hasSize(1);
+    assertThat(r.get(0).message()).contains("9000000").contains("10000000");
+    assertThat(evaluator.evaluate(rule, okVoucher.withLines(List.of(), okVoucher.invoice())))
+        .isEmpty(); // không có dòng: không so sánh
+  }
+
+  @Test
+  void invalidVatRateUsesTheConfiguredCatalogueAndUnit() {
+    var rule = rule("DOC_INVALID_VAT_RATE");
+    var evaluator = new SpelRuleEvaluator();
+    var v =
+        voucher(
+            "MH1",
+            "0101234567",
+            List.of(
+                line(1, "1000", "7", "70"),
+                line(2, "1000", "10", "100"),
+                line(3, "1000", "8", "80"),
+                line(4, "1000", "0", "0"),
+                line(5, "1000", "-1", "0"),
+                line(6, "1000", "5.0", "50")));
+    var r = evaluator.evaluate(rule, v);
+    assertThat(r).hasSize(1); // chỉ 7% lệch danh mục; -1 (KCT) bị bỏ qua; 5.0 ≡ 5
+    assertThat(r.get(0).message()).contains("Dòng 1").contains("0,5,8,10");
+
+    // ERP lưu phân số (0.1): đặt rateDivisor = 0.01
+    var fractional = rule.withParams(Map.of("rateDivisor", new java.math.BigDecimal("0.01")));
+    var fv =
+        voucher(
+            "MH1",
+            "0101234567",
+            List.of(line(1, "1000", "0.1", "100"), line(2, "1000", "0.07", "70")));
+    assertThat(evaluator.evaluate(fractional, fv)).hasSize(1);
   }
 }

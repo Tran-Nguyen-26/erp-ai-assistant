@@ -1,0 +1,18 @@
+ruleId: XDOC_PAYMENT_EXCEEDS_DEBT
+name: "Thanh toán vượt công nợ phải trả còn lại"
+group: XDOC
+severity: WARNING
+entityType: PAYMENT
+entityTypes: [PAYMENT, BANK_DEBIT]
+evaluator: SQL
+sqlRef: rule-payment-exceeds-debt
+sqlParams: [companyId, partnerId, voucherDate, entityRef, debtPaymentAmount]
+# TẮT mặc định: số dư công nợ tính từ sổ cái (TK 331) cần xác nhận với dữ liệu thật — số dư đầu kỳ có nằm
+# trong GeneralLedgerDetail hay ở SummaryOpeningBalance, và dấu Nợ/Có của chứng từ mua hàng. Truy vấn quét lịch
+# sử sổ cái theo đối tượng nên cũng cần đo hiệu năng trước khi bật.
+message: >
+  Thanh toán {{row.paying}} vượt công nợ phải trả còn lại {{row.debt}} của đối tượng
+legalRefs: []
+ragQuery: "kiểm soát thanh toán công nợ phải trả nhà cung cấp"
+enabled: false
+version: 1

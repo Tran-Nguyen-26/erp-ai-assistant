@@ -106,6 +106,7 @@ public class SpelRuleEvaluator {
     register(ctx, "round", "round", java.math.BigDecimal.class);
     register(ctx, "sum", "sum", Collection.class);
     register(ctx, "isBlank", "isBlank", String.class);
+    register(ctx, "daysFromToday", "daysFromToday", java.time.LocalDate.class);
     register(ctx, "matches", "matches", String.class, String.class);
     return ctx;
   }

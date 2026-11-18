@@ -126,7 +126,11 @@ class ErpSalesPaymentAdapterTest {
   @Test
   void queryServiceAcceptsGuidWithOptionalDateAndRejectsBadRefs() {
     var salesPayment = mock(ErpSalesPaymentAdapter.class);
-    var service = new ErpQueryService(mock(ErpVoucherAdapter.class), salesPayment);
+    var service =
+        new ErpQueryService(
+            mock(ErpVoucherAdapter.class),
+            salesPayment,
+            mock(vn.edu.uet.erpai.erp.adapter.ErpVoucherKindAdapter.class));
     when(salesPayment.findSalesInvoice(anyString(), anyString(), any()))
         .thenReturn(Optional.empty());
 
@@ -153,6 +157,13 @@ class ErpSalesPaymentAdapterTest {
   void supportedTypesAreExactlyTheOnesWithAdapters() {
     assertThat(ErpQueryService.SUPPORTED_TYPES)
         .containsExactlyInAnyOrder(
-            ErpEntityType.PURCHASE_INVOICE, ErpEntityType.SALES_INVOICE, ErpEntityType.PAYMENT);
+            ErpEntityType.PURCHASE_INVOICE,
+            ErpEntityType.SALES_INVOICE,
+            ErpEntityType.PAYMENT,
+            ErpEntityType.RECEIPT,
+            ErpEntityType.BANK_DEBIT,
+            ErpEntityType.BANK_CREDIT,
+            ErpEntityType.PURCHASE_RETURN,
+            ErpEntityType.SALES_RETURN);
   }
 }

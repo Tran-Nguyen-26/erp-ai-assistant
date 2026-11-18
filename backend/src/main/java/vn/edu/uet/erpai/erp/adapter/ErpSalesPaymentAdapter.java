@@ -1,8 +1,5 @@
 package vn.edu.uet.erpai.erp.adapter;
 
-import java.math.BigDecimal;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -18,11 +15,12 @@ import vn.edu.uet.erpai.erp.model.ErpJournalLine;
 import vn.edu.uet.erpai.erp.model.ErpPage;
 import vn.edu.uet.erpai.erp.model.ErpPartnerRef;
 import vn.edu.uet.erpai.erp.model.ErpVoucher;
+import vn.edu.uet.erpai.erp.model.VoucherFilter;
 
 /**
- * Adapter hóa đơn bán hàng (SAInvoice/SAInvoiceDetail) và phiếu chi (MCPayment/MCPaymentDetail) →
- * canonical model. Chỉ SELECT. Khóa hóa đơn bán hàng có dạng {@code GUID@yyyy-MM-dd} vì SAInvoice
- * được phân vùng/đánh index theo Date (xem docs/erp-mapping.md).
+ * Adapter hóa đơn bán hàng (SAInvoice/SAInvoiceDetail) → canonical model. Chỉ SELECT. Khóa hóa đơn
+ * bán hàng có dạng {@code GUID@yyyy-MM-dd} vì SAInvoice được phân vùng/đánh index theo Date (xem
+ * docs/erp-mapping.md).
  */
 @Component
 public class ErpSalesPaymentAdapter {
@@ -77,8 +75,26 @@ public class ErpSalesPaymentAdapter {
 
   public ErpPage<ErpVoucher> listSalesInvoices(
       String companyId, LocalDate from, LocalDate toInclusive, int page, int size) {
+    return listSalesInvoices(companyId, from, toInclusive, page, size, VoucherFilter.NONE);
+  }
+
+  public ErpPage<ErpVoucher> listSalesInvoices(
+      String companyId,
+      LocalDate from,
+      LocalDate toInclusive,
+      int page,
+      int size,
+      VoucherFilter filter) {
     return list(
-        "sales-invoice", SALES_TYPE_IDS, SALES_MAPPER, companyId, from, toInclusive, page, size);
+        "sales-invoice",
+        SALES_TYPE_IDS,
+        SALES_MAPPER,
+        companyId,
+        from,
+        toInclusive,
+        page,
+        size,
+        filter);
   }
 
   public long countSalesInvoices(String companyId, LocalDate from, LocalDate toInclusive) {
@@ -88,54 +104,6 @@ public class ErpSalesPaymentAdapter {
   public List<String> listSalesInvoiceIds(
       String companyId, LocalDate from, LocalDate toInclusive, long offset, int size) {
     return ids("sales-invoice", SALES_TYPE_IDS, companyId, from, toInclusive, offset, size);
-  }
-
-  // ---------- phiếu chi ----------
-
-  public Optional<ErpVoucher> findPayment(String companyId, String id) {
-    var params = new MapSqlParameterSource("companyId", companyId).addValue("id", id);
-    var header = jdbc.query(sql.load("payment-by-id"), params, PAYMENT_MAPPER).stream().findFirst();
-    if (header.isEmpty()) {
-      return Optional.empty();
-    }
-    var v = header.get();
-    var rows = jdbc.query(sql.load("payment-lines"), params, new PaymentLineMapper());
-    var lines = new ArrayList<ErpJournalLine>();
-    ErpInvoice invoice = null;
-    for (var row : rows) {
-      lines.add(row.line());
-      if (invoice == null && row.invoiceNo() != null && !row.invoiceNo().isBlank()) {
-        invoice =
-            new ErpInvoice(
-                row.invoiceTemplate(),
-                row.invoiceSeries(),
-                row.invoiceNo(),
-                row.invoiceDate(),
-                v.partner() == null ? null : v.partner().taxCode(),
-                v.partner() == null ? null : v.partner().name(),
-                v.totalAmount().subtract(v.totalVatAmount()),
-                v.totalVatAmount(),
-                BigDecimal.ZERO,
-                v.totalAmount(),
-                "CASH");
-      }
-    }
-    return Optional.of(v.withLines(withLineNo(lines), invoice));
-  }
-
-  public ErpPage<ErpVoucher> listPayments(
-      String companyId, LocalDate from, LocalDate toInclusive, int page, int size) {
-    return list(
-        "payment", PAYMENT_TYPE_IDS, PAYMENT_MAPPER, companyId, from, toInclusive, page, size);
-  }
-
-  public long countPayments(String companyId, LocalDate from, LocalDate toInclusive) {
-    return count("payment", PAYMENT_TYPE_IDS, companyId, from, toInclusive);
-  }
-
-  public List<String> listPaymentIds(
-      String companyId, LocalDate from, LocalDate toInclusive, long offset, int size) {
-    return ids("payment", PAYMENT_TYPE_IDS, companyId, from, toInclusive, offset, size);
   }
 
   // ---------- dùng chung ----------
@@ -148,21 +116,27 @@ public class ErpSalesPaymentAdapter {
       LocalDate from,
       LocalDate to,
       int page,
-      int size) {
+      int size,
+      VoucherFilter filter) {
     var params =
-        period(companyId, from, to, types)
+        filter
+            .applyTo(period(companyId, from, to, types))
             .addValue("offset", (long) page * size)
             .addValue("size", size);
     long total =
         jdbc.queryForObject(
-            sql.load(name + "-count"), period(companyId, from, to, types), Long.class);
+            sql.load(name + "-count"),
+            filter.applyTo(period(companyId, from, to, types)),
+            Long.class);
     return new ErpPage<>(jdbc.query(sql.load(name + "-list"), params, mapper), page, size, total);
   }
 
   private long count(
       String name, List<Integer> types, String companyId, LocalDate from, LocalDate to) {
     return jdbc.queryForObject(
-        sql.load(name + "-count"), period(companyId, from, to, types), Long.class);
+        sql.load(name + "-count"),
+        VoucherFilter.NONE.applyTo(period(companyId, from, to, types)),
+        Long.class);
   }
 
   private List<String> ids(
@@ -282,62 +256,4 @@ public class ErpSalesPaymentAdapter {
               ErpVoucherAdapter.money(rs, "VATRate"),
               ErpVoucherAdapter.money(rs, "VATAmount"),
               rs.getString("VATAccount"));
-
-  public static final RowMapper<ErpVoucher> PAYMENT_MAPPER =
-      (rs, i) ->
-          new ErpVoucher(
-              rs.getString("ID"),
-              rs.getString("CompanyID"),
-              ErpEntityType.PAYMENT,
-              rs.getInt("TypeID"),
-              rs.getString("NoFBook"),
-              ErpVoucherAdapter.date(rs, "Date"),
-              ErpVoucherAdapter.date(rs, "PostedDate"),
-              rs.getString("Reason"),
-              new ErpPartnerRef(
-                  rs.getString("AccountingObjectID"),
-                  rs.getString("PartnerCode"),
-                  rs.getString("AccountingObjectName"),
-                  rs.getString("TaxCode")),
-              rs.getString("CurrencyID"),
-              ErpVoucherAdapter.money(rs, "ExchangeRate"),
-              ErpVoucherAdapter.money(rs, "TotalAmount"),
-              ErpVoucherAdapter.money(rs, "TotalVATAmount"),
-              BigDecimal.ZERO,
-              rs.getBoolean("Recorded"),
-              List.of(),
-              null);
-
-  public record PaymentLineRow(
-      ErpJournalLine line,
-      String invoiceTemplate,
-      String invoiceSeries,
-      String invoiceNo,
-      LocalDate invoiceDate) {}
-
-  public static class PaymentLineMapper implements RowMapper<PaymentLineRow> {
-    @Override
-    public PaymentLineRow mapRow(ResultSet rs, int i) throws SQLException {
-      var line =
-          new ErpJournalLine(
-              i + 1,
-              rs.getString("Description"),
-              rs.getString("DebitAccount"),
-              rs.getString("CreditAccount"),
-              ErpVoucherAdapter.money(rs, "Amount"),
-              ErpVoucherAdapter.money(rs, "AmountOriginal"),
-              null,
-              BigDecimal.ZERO,
-              BigDecimal.ZERO,
-              ErpVoucherAdapter.money(rs, "VATRate"),
-              ErpVoucherAdapter.money(rs, "VATAmount"),
-              rs.getString("VATAccount"));
-      return new PaymentLineRow(
-          line,
-          rs.getString("InvoiceTemplate"),
-          rs.getString("InvoiceSeries"),
-          rs.getString("InvoiceNo"),
-          ErpVoucherAdapter.date(rs, "InvoiceDate"));
-    }
-  }
 }

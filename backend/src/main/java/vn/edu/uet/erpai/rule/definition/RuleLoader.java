@@ -32,7 +32,9 @@ public class RuleLoader {
           "sinceDate",
           "lineNo",
           "materialGoodsId",
-          "unitPrice");
+          "unitPrice",
+          "voucherDate",
+          "debtPaymentAmount");
 
   private final ObjectMapper mapper =
       new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);

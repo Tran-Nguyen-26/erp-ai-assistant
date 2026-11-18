@@ -135,7 +135,8 @@ class SqlRuleEvaluatorTest {
     var service =
         new ErpQueryService(
             mock(vn.edu.uet.erpai.erp.adapter.ErpVoucherAdapter.class),
-            mock(vn.edu.uet.erpai.erp.adapter.ErpSalesPaymentAdapter.class));
+            mock(vn.edu.uet.erpai.erp.adapter.ErpSalesPaymentAdapter.class),
+            mock(vn.edu.uet.erpai.erp.adapter.ErpVoucherKindAdapter.class));
     for (var bad :
         new String[] {"../application", "rule-x; DROP", "purchase-invoice-by-id", null, "RULE-X"}) {
       assertThatThrownBy(() -> service.queryRule(bad, Map.of()))
@@ -231,5 +232,89 @@ class SqlRuleEvaluatorTest {
         BigDecimal.TEN,
         BigDecimal.ONE,
         "1331");
+  }
+
+  // ---------- XDOC_PAYMENT_EXCEEDS_DEBT ----------
+
+  @Test
+  void paymentToSuppliersIsComparedWithThePayableBalanceOnlyWhenItDebits331() {
+    var rule =
+        new RuleLoader()
+            .loadAll().stream()
+                .filter(r -> r.ruleId().equals("XDOC_PAYMENT_EXCEEDS_DEBT"))
+                .findFirst()
+                .orElseThrow();
+    var pay =
+        new vn.edu.uet.erpai.erp.model.ErpJournalLine(
+            1,
+            "Trả NCC",
+            "331",
+            "1111",
+            new BigDecimal("8000000"),
+            new BigDecimal("8000000"),
+            null,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            null);
+    var other =
+        new vn.edu.uet.erpai.erp.model.ErpJournalLine(
+            2,
+            "Chi khác",
+            "642",
+            "1111",
+            new BigDecimal("1000000"),
+            new BigDecimal("1000000"),
+            null,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            null);
+    var v =
+        new ErpVoucher(
+            REF,
+            COMPANY,
+            ErpEntityType.PAYMENT,
+            116,
+            "PC1",
+            LocalDate.of(2026, 10, 20),
+            null,
+            "d",
+            new ErpPartnerRef("partner-guid", "N", "A", "0101234567"),
+            "VND",
+            BigDecimal.ONE,
+            new BigDecimal("9000000"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            true,
+            List.of(pay, other),
+            null);
+    when(erp.queryRule(eq("rule-payment-exceeds-debt"), anyMap()))
+        .thenReturn(
+            List.of(
+                Map.of("debt", new BigDecimal("5000000"), "paying", new BigDecimal("8000000"))));
+
+    var results = evaluator.evaluate(rule, v);
+
+    assertThat(results).hasSize(1);
+    assertThat(results.get(0).message()).contains("8000000").contains("5000000");
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, Object>> params = ArgumentCaptor.forClass(Map.class);
+    verify(erp).queryRule(eq("rule-payment-exceeds-debt"), params.capture());
+    assertThat(params.getValue())
+        .containsEntry("debtPaymentAmount", new BigDecimal("8000000")) // chỉ cộng các dòng Nợ 331*
+        .containsEntry("partnerId", "partner-guid")
+        .containsEntry("voucherDate", java.sql.Date.valueOf(LocalDate.of(2026, 10, 20)));
+
+    // không có dòng nào Nợ 331 → không truy vấn
+    org.mockito.Mockito.clearInvocations(erp);
+    var noDebt = v.withLines(List.of(other), null);
+    assertThat(evaluator.evaluate(rule, noDebt)).isEmpty();
+    verify(erp, never()).queryRule(any(), anyMap());
+    // rule chỉ áp dụng cho phiếu chi/báo Nợ
+    assertThat(rule.appliesTo(ErpEntityType.PURCHASE_INVOICE)).isFalse();
+    assertThat(rule.appliesTo(ErpEntityType.BANK_DEBIT)).isTrue();
   }
 }

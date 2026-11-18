@@ -31,11 +31,15 @@ public class ErpQueryService {
 
   private final ErpVoucherAdapter adapter;
   private final vn.edu.uet.erpai.erp.adapter.ErpSalesPaymentAdapter salesPayment;
+  private final vn.edu.uet.erpai.erp.adapter.ErpVoucherKindAdapter kinds;
 
   public ErpQueryService(
-      ErpVoucherAdapter adapter, vn.edu.uet.erpai.erp.adapter.ErpSalesPaymentAdapter salesPayment) {
+      ErpVoucherAdapter adapter,
+      vn.edu.uet.erpai.erp.adapter.ErpSalesPaymentAdapter salesPayment,
+      vn.edu.uet.erpai.erp.adapter.ErpVoucherKindAdapter kinds) {
     this.adapter = adapter;
     this.salesPayment = salesPayment;
+    this.kinds = kinds;
   }
 
   /** Loại chứng từ ERP đã có adapter (rà soát tức thời, job hàng loạt, đề xuất sửa, chat). */
@@ -43,7 +47,12 @@ public class ErpQueryService {
       java.util.EnumSet.of(
           vn.edu.uet.erpai.erp.model.ErpEntityType.PURCHASE_INVOICE,
           vn.edu.uet.erpai.erp.model.ErpEntityType.SALES_INVOICE,
-          vn.edu.uet.erpai.erp.model.ErpEntityType.PAYMENT);
+          vn.edu.uet.erpai.erp.model.ErpEntityType.PAYMENT,
+          vn.edu.uet.erpai.erp.model.ErpEntityType.RECEIPT,
+          vn.edu.uet.erpai.erp.model.ErpEntityType.BANK_DEBIT,
+          vn.edu.uet.erpai.erp.model.ErpEntityType.BANK_CREDIT,
+          vn.edu.uet.erpai.erp.model.ErpEntityType.PURCHASE_RETURN,
+          vn.edu.uet.erpai.erp.model.ErpEntityType.SALES_RETURN);
 
   /**
    * Tải chứng từ theo loại. Khóa hóa đơn bán hàng có dạng {@code GUID} hoặc {@code GUID@yyyy-MM-dd}
@@ -54,7 +63,8 @@ public class ErpQueryService {
     return switch (type) {
       case PURCHASE_INVOICE -> getPurchaseInvoice(companyId, entityRef);
       case SALES_INVOICE -> getSalesInvoice(companyId, entityRef);
-      case PAYMENT -> getPayment(companyId, entityRef);
+      case PAYMENT, RECEIPT, BANK_DEBIT, BANK_CREDIT, PURCHASE_RETURN, SALES_RETURN ->
+          getSimple(type, companyId, entityRef);
       default ->
           throw new BusinessException(
               "RULE_ENTITY_TYPE_UNSUPPORTED", "Chưa hỗ trợ loại chứng từ " + type);
@@ -81,14 +91,26 @@ public class ErpQueryService {
                     "ERP_VOUCHER_NOT_FOUND", "Không tìm thấy chứng từ", HttpStatus.NOT_FOUND));
   }
 
-  public ErpVoucher getPayment(String companyId, String entityRef) {
+  /** Chứng từ tiền/ngân hàng/hàng trả lại: khóa là GUID. */
+  public ErpVoucher getSimple(
+      vn.edu.uet.erpai.erp.model.ErpEntityType type, String companyId, String entityRef) {
+    var kind = kind(type);
     var company = guid(companyId, "companyId");
     var id = guid(entityRef, "entityRef");
-    return guard(() -> salesPayment.findPayment(company, id))
+    return guard(() -> kinds.find(kind, company, id))
         .orElseThrow(
             () ->
                 new BusinessException(
                     "ERP_VOUCHER_NOT_FOUND", "Không tìm thấy chứng từ", HttpStatus.NOT_FOUND));
+  }
+
+  private static vn.edu.uet.erpai.erp.adapter.ErpVoucherKindAdapter.Kind kind(
+      vn.edu.uet.erpai.erp.model.ErpEntityType type) {
+    return vn.edu.uet.erpai.erp.adapter.ErpVoucherKindAdapter.Kind.of(type)
+        .orElseThrow(
+            () ->
+                new BusinessException(
+                    "RULE_ENTITY_TYPE_UNSUPPORTED", "Chưa hỗ trợ loại chứng từ " + type));
   }
 
   public ErpPage<ErpVoucher> listVouchers(
@@ -98,20 +120,42 @@ public class ErpQueryService {
       LocalDate to,
       int page,
       int size) {
+    return listVouchers(
+        type, companyId, from, to, page, size, vn.edu.uet.erpai.erp.model.VoucherFilter.NONE);
+  }
+
+  /** Danh sách chứng từ theo loại, có bộ lọc tùy chọn (q, partnerTaxCode). */
+  public ErpPage<ErpVoucher> listVouchers(
+      vn.edu.uet.erpai.erp.model.ErpEntityType type,
+      String companyId,
+      LocalDate from,
+      LocalDate to,
+      int page,
+      int size,
+      vn.edu.uet.erpai.erp.model.VoucherFilter filter) {
     return switch (type) {
-      case PURCHASE_INVOICE -> listPurchaseInvoices(companyId, from, to, page, size);
+      case PURCHASE_INVOICE -> {
+        validatePeriod(from, to);
+        var company = guid(companyId, "companyId");
+        yield guard(
+            () ->
+                adapter.listPurchaseInvoices(
+                    company, from, to, safePage(page), safeSize(size), filter));
+      }
       case SALES_INVOICE -> {
         validatePeriod(from, to);
         var company = guid(companyId, "companyId");
         yield guard(
             () ->
-                salesPayment.listSalesInvoices(company, from, to, safePage(page), safeSize(size)));
+                salesPayment.listSalesInvoices(
+                    company, from, to, safePage(page), safeSize(size), filter));
       }
-      case PAYMENT -> {
+      case PAYMENT, RECEIPT, BANK_DEBIT, BANK_CREDIT, PURCHASE_RETURN, SALES_RETURN -> {
         validatePeriod(from, to);
         var company = guid(companyId, "companyId");
+        var kind = kind(type);
         yield guard(
-            () -> salesPayment.listPayments(company, from, to, safePage(page), safeSize(size)));
+            () -> kinds.list(kind, company, from, to, safePage(page), safeSize(size), filter));
       }
       default ->
           throw new BusinessException(
@@ -131,10 +175,11 @@ public class ErpQueryService {
         var company = guid(companyId, "companyId");
         yield guard(() -> salesPayment.countSalesInvoices(company, from, to));
       }
-      case PAYMENT -> {
+      case PAYMENT, RECEIPT, BANK_DEBIT, BANK_CREDIT, PURCHASE_RETURN, SALES_RETURN -> {
         validatePeriod(from, to);
         var company = guid(companyId, "companyId");
-        yield guard(() -> salesPayment.countPayments(company, from, to));
+        var kind = kind(type);
+        yield guard(() -> kinds.count(kind, company, from, to));
       }
       default ->
           throw new BusinessException(
@@ -159,12 +204,12 @@ public class ErpQueryService {
         yield guard(
             () -> salesPayment.listSalesInvoiceIds(company, from, to, Math.max(offset, 0), safe));
       }
-      case PAYMENT -> {
+      case PAYMENT, RECEIPT, BANK_DEBIT, BANK_CREDIT, PURCHASE_RETURN, SALES_RETURN -> {
         validatePeriod(from, to);
         var company = guid(companyId, "companyId");
+        var kind = kind(type);
         int safe = Math.min(Math.max(size, 1), MAX_ID_PAGE_SIZE);
-        yield guard(
-            () -> salesPayment.listPaymentIds(company, from, to, Math.max(offset, 0), safe));
+        yield guard(() -> kinds.ids(kind, company, from, to, Math.max(offset, 0), safe));
       }
       default ->
           throw new BusinessException(

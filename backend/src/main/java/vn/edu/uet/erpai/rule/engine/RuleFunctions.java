@@ -25,6 +25,13 @@ public final class RuleFunctions {
         : values.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
+  /** Số ngày từ hôm nay đến {@code date} (dương = tương lai, âm = quá khứ); null → 0. */
+  public static long daysFromToday(java.time.LocalDate date) {
+    return date == null
+        ? 0
+        : java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), date);
+  }
+
   public static boolean isBlank(String s) {
     return s == null || s.isBlank();
   }

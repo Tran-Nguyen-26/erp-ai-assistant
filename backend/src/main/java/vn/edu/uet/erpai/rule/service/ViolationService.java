@@ -192,6 +192,43 @@ public class ViolationService {
     return ViolationResponse.from(v);
   }
 
+  /** Vi phạm đang mở của một chứng từ: số lượng và mức độ nặng nhất. */
+  public record OpenSummary(int openCount, String maxSeverity) {}
+
+  private static final Set<ViolationStatus> OPEN_STATUSES =
+      EnumSet.of(ViolationStatus.OPEN, ViolationStatus.EXPLAINED, ViolationStatus.PROPOSED);
+  private static final String[] SEVERITY_BY_RANK = {"ERROR", "WARNING", "INFO"};
+
+  /**
+   * Tổng hợp vi phạm đang mở cho một tập chứng từ (khóa = entityRef); chứng từ không có vi phạm
+   * không xuất hiện.
+   */
+  @Transactional(readOnly = true)
+  public Map<String, OpenSummary> openSummaryByRefs(
+      String companyId, String entityType, java.util.Collection<String> refs) {
+    var out = new LinkedHashMap<String, OpenSummary>();
+    if (refs.isEmpty()) {
+      return out;
+    }
+    for (var row : violations.openSummaryByRefs(companyId, entityType, refs, OPEN_STATUSES)) {
+      int rank = Math.min(((Number) row[2]).intValue(), SEVERITY_BY_RANK.length - 1);
+      out.put(
+          (String) row[0], new OpenSummary(((Number) row[1]).intValue(), SEVERITY_BY_RANK[rank]));
+    }
+    return out;
+  }
+
+  /** Khóa các chứng từ đang có vi phạm mở trong khoảng ngày (mới phát hiện trước) và tổng số. */
+  public record OpenRefs(List<String> refs, long total) {}
+
+  @Transactional(readOnly = true)
+  public OpenRefs openEntityRefs(
+      String companyId, String entityType, LocalDate from, LocalDate to, Pageable pageable) {
+    return new OpenRefs(
+        violations.openEntityRefs(companyId, entityType, OPEN_STATUSES, from, to, pageable),
+        violations.countOpenEntityRefs(companyId, entityType, OPEN_STATUSES, from, to));
+  }
+
   @Transactional(readOnly = true)
   public Map<String, Long> severityCountsForJob(UUID reviewJobId) {
     var out = new LinkedHashMap<String, Long>();

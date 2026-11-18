@@ -17,7 +17,10 @@ class ErpQueryServiceTest {
   private static final String COMPANY = "11111111-1111-1111-1111-111111111111";
   private final ErpVoucherAdapter adapter = mock(ErpVoucherAdapter.class);
   private final ErpQueryService service =
-      new ErpQueryService(adapter, mock(vn.edu.uet.erpai.erp.adapter.ErpSalesPaymentAdapter.class));
+      new ErpQueryService(
+          adapter,
+          mock(vn.edu.uet.erpai.erp.adapter.ErpSalesPaymentAdapter.class),
+          mock(vn.edu.uet.erpai.erp.adapter.ErpVoucherKindAdapter.class));
 
   @Test
   void rejectsNonGuidRefBeforeTouchingDatabase() {
