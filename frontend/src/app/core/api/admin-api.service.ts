@@ -89,8 +89,16 @@ export class AdminApiService {
     });
   }
 
-  createJob(periodFrom: string, periodTo: string, entityTypes: string[] = ['PURCHASE_INVOICE']): Observable<ReviewJobResponse> {
-    return this.http.post<ReviewJobResponse>(`${this.base}/review-jobs`, { periodFrom, periodTo, entityTypes });
+  createJob(
+    periodFrom: string,
+    periodTo: string,
+    entityTypes: string[] = ['PURCHASE_INVOICE'],
+  ): Observable<ReviewJobResponse> {
+    return this.http.post<ReviewJobResponse>(`${this.base}/review-jobs`, {
+      periodFrom,
+      periodTo,
+      entityTypes,
+    });
   }
 
   cancelJob(id: string): Observable<ReviewJobResponse> {

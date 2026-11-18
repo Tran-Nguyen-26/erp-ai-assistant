@@ -43,7 +43,9 @@ import { ReviewJobResponse } from '../../core/models/admin.model';
               }
             </mat-select>
           </mat-form-field>
-          <button mat-flat-button (click)="create()" [disabled]="!from || !to || !types.length">Tạo job</button>
+          <button mat-flat-button (click)="create()" [disabled]="!from || !to || !types.length">
+            Tạo job
+          </button>
           <span class="muted">Tối đa 12 tháng</span>
         </div>
       }
