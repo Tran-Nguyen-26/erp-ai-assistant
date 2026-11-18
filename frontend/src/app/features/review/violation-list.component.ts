@@ -1,6 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -88,6 +88,13 @@ import { VOUCHER_TYPES } from '../../core/models/voucher-types';
         </mat-form-field>
       </div>
 
+      @if (entityRef) {
+        <p class="muted">
+          Đang lọc theo chứng từ {{ entityRef }}
+          <button mat-button (click)="clearEntity()">Bỏ lọc</button>
+        </p>
+      }
+
       <table class="full">
         <thead>
           <tr>
@@ -145,6 +152,7 @@ import { VOUCHER_TYPES } from '../../core/models/voucher-types';
 export class ViolationListComponent implements OnInit {
   private readonly api = inject(ViolationApiService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly snack = inject(MatSnackBar);
 
   protected readonly statuses = [
@@ -157,6 +165,7 @@ export class ViolationListComponent implements OnInit {
   ];
   protected status: string[] = ['OPEN', 'EXPLAINED', 'PROPOSED'];
   protected severity = '';
+  protected entityRef = '';
   protected checkRef = '';
   protected checkType = 'PURCHASE_INVOICE';
   protected readonly voucherTypes = VOUCHER_TYPES;
@@ -167,6 +176,7 @@ export class ViolationListComponent implements OnInit {
   protected readonly checkMsg = signal('');
 
   ngOnInit(): void {
+    this.entityRef = this.route.snapshot.queryParamMap.get('entityRef') ?? '';
     this.reload(0);
   }
 
@@ -175,13 +185,26 @@ export class ViolationListComponent implements OnInit {
   }
 
   protected reload(page: number): void {
-    this.api.list({ status: this.status, severity: this.severity || undefined, page }).subscribe({
-      next: (d) => this.data.set(d),
-      error: (e) => this.snack.open(errorMessage(e), 'Đóng', { duration: 5000 }),
-    });
+    this.api
+      .list({
+        status: this.status,
+        severity: this.severity || undefined,
+        entityRef: this.entityRef || undefined,
+        page,
+      })
+      .subscribe({
+        next: (d) => this.data.set(d),
+        error: (e) => this.snack.open(errorMessage(e), 'Đóng', { duration: 5000 }),
+      });
     this.api
       .summary()
       .subscribe({ next: (s) => this.summary.set(s), error: () => this.summary.set(null) });
+  }
+
+  protected clearEntity(): void {
+    this.entityRef = '';
+    void this.router.navigate([], { queryParams: {} });
+    this.reload(0);
   }
 
   protected onPage(e: PageEvent): void {

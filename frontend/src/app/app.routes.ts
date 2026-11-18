@@ -19,6 +19,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'vouchers',
+        loadComponent: () =>
+          import('./features/review/voucher-search.component').then(
+            (m) => m.VoucherSearchComponent,
+          ),
+      },
+      {
         path: 'review/:id',
         loadComponent: () =>
           import('./features/review/violation-detail.component').then(

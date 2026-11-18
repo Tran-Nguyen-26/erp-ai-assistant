@@ -68,6 +68,7 @@ export class App {
   private readonly items: NavItem[] = [
     { label: 'Trợ lý', path: '/assistant' },
     { label: 'Nhập liệu', path: '/entry' },
+    { label: 'Chứng từ', path: '/vouchers' },
     { label: 'Rà soát', path: '/review' },
     { label: 'Job hàng loạt', path: '/jobs' },
     { label: 'Duyệt đề xuất', path: '/approval' },
