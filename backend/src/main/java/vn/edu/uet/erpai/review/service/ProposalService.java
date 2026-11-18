@@ -86,12 +86,9 @@ public class ProposalService {
           "Violation ở trạng thái " + violation.status() + " không thể đề xuất",
           HttpStatus.CONFLICT);
     }
-    if (!ErpEntityType.PURCHASE_INVOICE.name().equals(violation.entityType())) {
-      throw new BusinessException(
-          "RULE_ENTITY_TYPE_UNSUPPORTED", "Chưa hỗ trợ đề xuất cho loại chứng từ này");
-    }
-
-    var original = erp.getPurchaseInvoice(user.companyId(), violation.entityRef());
+    var original =
+        erp.getVoucher(
+            ErpEntityType.valueOf(violation.entityType()), user.companyId(), violation.entityRef());
     var patched = original;
     var changeJson = new ArrayList<Map<String, Object>>();
     var before = new LinkedHashMap<String, Object>();

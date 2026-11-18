@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AdminApiService } from '../../core/api/admin-api.service';
 import { AuthService } from '../../core/auth.service';
@@ -21,6 +22,7 @@ import { ReviewJobResponse } from '../../core/models/admin.model';
     MatFormFieldModule,
     MatInputModule,
     MatProgressBarModule,
+    MatSelectModule,
   ],
   template: `
     <div class="page">
@@ -33,8 +35,16 @@ import { ReviewJobResponse } from '../../core/models/admin.model';
           <mat-form-field appearance="outline"
             ><mat-label>Đến ngày</mat-label> <input matInput type="date" [(ngModel)]="to"
           /></mat-form-field>
-          <button mat-flat-button (click)="create()" [disabled]="!from || !to">Tạo job</button>
-          <span class="muted">Tối đa 12 tháng · hóa đơn mua hàng</span>
+          <mat-form-field appearance="outline">
+            <mat-label>Loại chứng từ</mat-label>
+            <mat-select multiple [(ngModel)]="types">
+              @for (t of voucherTypes; track t.value) {
+                <mat-option [value]="t.value">{{ t.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <button mat-flat-button (click)="create()" [disabled]="!from || !to || !types.length">Tạo job</button>
+          <span class="muted">Tối đa 12 tháng</span>
         </div>
       }
       @for (j of jobs(); track j.id) {
@@ -73,6 +83,12 @@ export class ReviewJobsComponent implements OnInit, OnDestroy {
 
   protected readonly jobs = signal<ReviewJobResponse[]>([]);
   protected from = '';
+  protected types: string[] = ['PURCHASE_INVOICE'];
+  protected readonly voucherTypes = [
+    { value: 'PURCHASE_INVOICE', label: 'Hóa đơn mua hàng' },
+    { value: 'SALES_INVOICE', label: 'Hóa đơn bán hàng' },
+    { value: 'PAYMENT', label: 'Phiếu chi' },
+  ];
   protected to = '';
   private timer: ReturnType<typeof setInterval> | undefined;
 
@@ -90,7 +106,7 @@ export class ReviewJobsComponent implements OnInit, OnDestroy {
   }
 
   protected create(): void {
-    this.api.createJob(this.from, this.to).subscribe({
+    this.api.createJob(this.from, this.to, this.types).subscribe({
       next: () => this.load(),
       error: (e) => this.snack.open(errorMessage(e), 'Đóng', { duration: 6000 }),
     });

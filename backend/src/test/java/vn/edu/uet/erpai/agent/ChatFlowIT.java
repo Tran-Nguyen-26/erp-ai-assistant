@@ -198,7 +198,7 @@ class ChatFlowIT extends AbstractPostgresIT {
     var session = newSession(token);
     doReturn(new ErpPage<>(List.of(voucher("MH1", INJECTION), voucher("MH2", "Alpha")), 0, 20, 2))
         .when(erp)
-        .listPurchaseInvoices(anyString(), any(), any(), anyInt(), anyInt());
+        .listVouchers(any(), anyString(), any(), any(), anyInt(), anyInt());
     decisions(
         new ToolDecision(
             "query_erp_vouchers", Map.of("periodFrom", "2026-10-01", "periodTo", "2026-10-31")),
@@ -297,7 +297,7 @@ class ChatFlowIT extends AbstractPostgresIT {
     var n = new AtomicInteger();
     doThrow(new BusinessException("ERP_UNAVAILABLE", "ERP down", HttpStatus.BAD_GATEWAY))
         .when(erp)
-        .listPurchaseInvoices(anyString(), any(), any(), anyInt(), anyInt());
+        .listVouchers(any(), anyString(), any(), any(), anyInt(), anyInt());
     // LLM không bao giờ dừng: mỗi lần gọi một lời gọi khác nhau
     doAnswer(
             inv ->
@@ -332,7 +332,7 @@ class ChatFlowIT extends AbstractPostgresIT {
     var token = login("c_acc5", Role.ACCOUNTANT);
     doReturn(new ErpPage<>(List.of(), 0, 20, 0))
         .when(erp)
-        .listPurchaseInvoices(anyString(), any(), any(), anyInt(), anyInt());
+        .listVouchers(any(), anyString(), any(), any(), anyInt(), anyInt());
     doReturn(
             new ToolDecision(
                 "query_erp_vouchers", Map.of("periodFrom", "2026-10-01", "periodTo", "2026-10-31")))

@@ -47,7 +47,7 @@ export class ViolationApiService {
     return this.http.get<ViolationResponse>(`${this.base}/violations/${id}`);
   }
 
-  check(entityRef: string): Observable<CheckResultResponse> {
+  check(entityRef: string, entityType = 'PURCHASE_INVOICE'): Observable<CheckResultResponse> {
     return this.http.post<CheckResultResponse>(`${this.base}/reviews/check`, {
       entityType: 'PURCHASE_INVOICE',
       entityRef,

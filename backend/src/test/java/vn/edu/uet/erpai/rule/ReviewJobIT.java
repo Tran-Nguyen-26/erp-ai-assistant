@@ -152,16 +152,16 @@ class ReviewJobIT {
 
     // ----- Job 1: 450 chứng từ → 3 batch (200/200/50), mỗi chứng từ thứ 10 có MST sai -----
     var all = refs(450);
-    doReturn(450L).when(erp).countPurchaseInvoices(anyString(), any(), any());
-    doReturn(all).when(erp).listPurchaseInvoiceIds(anyString(), any(), any(), anyLong(), anyInt());
+    doReturn(450L).when(erp).countVouchers(any(), anyString(), any(), any());
+    doReturn(all).when(erp).listVoucherIds(any(), anyString(), any(), any(), anyLong(), anyInt());
     doAnswer(
             inv -> {
-              String ref = inv.getArgument(1);
+              String ref = inv.getArgument(2);
               int i = Integer.parseInt(ref.substring(4));
               return voucher(ref, i % 10 == 0 ? "12345" : "0101234567");
             })
         .when(erp)
-        .getPurchaseInvoice(anyString(), anyString());
+        .getVoucher(any(), anyString(), anyString());
 
     var created = createJob(chief, "2026-10-01", "2026-10-31", 202);
     var id1 = created.get("id").asText();
@@ -180,19 +180,19 @@ class ReviewJobIT {
 
     // ----- Job 2: batch thứ 2 luôn lỗi → retry → DLQ; job vẫn kết thúc, failedBatches = 1 -----
     var ids250 = refs(250);
-    doReturn(250L).when(erp).countPurchaseInvoices(anyString(), any(), any());
+    doReturn(250L).when(erp).countVouchers(any(), anyString(), any(), any());
     doReturn(ids250)
         .when(erp)
-        .listPurchaseInvoiceIds(anyString(), any(), any(), anyLong(), anyInt());
+        .listVoucherIds(any(), anyString(), any(), any(), anyLong(), anyInt());
     doAnswer(
             inv -> {
-              String ref = inv.getArgument(1);
+              String ref = inv.getArgument(2);
               if (Integer.parseInt(ref.substring(4)) >= 200)
                 throw new IllegalStateException("ERP down");
               return voucher(ref, "0101234567");
             })
         .when(erp)
-        .getPurchaseInvoice(anyString(), anyString());
+        .getVoucher(any(), anyString(), anyString());
     var id2 = createJob(chief, "2026-09-01", "2026-09-30", 202).get("id").asText();
     // trùng kỳ khi job đang chạy → 409
     createJob(chief, "2026-09-01", "2026-09-30", 409);
@@ -220,15 +220,15 @@ class ReviewJobIT {
     var chief = login("j_chief2", Role.CHIEF_ACCOUNTANT);
     var acc = login("j_acc2", Role.ACCOUNTANT);
     var all = refs(400);
-    doReturn(400L).when(erp).countPurchaseInvoices(anyString(), any(), any());
-    doReturn(all).when(erp).listPurchaseInvoiceIds(anyString(), any(), any(), anyLong(), anyInt());
+    doReturn(400L).when(erp).countVouchers(any(), anyString(), any(), any());
+    doReturn(all).when(erp).listVoucherIds(any(), anyString(), any(), any(), anyLong(), anyInt());
     doAnswer(
             inv -> {
               Thread.sleep(25); // làm chậm để kịp hủy giữa chừng
-              return voucher(inv.getArgument(1), "0101234567");
+              return voucher(inv.getArgument(2), "0101234567");
             })
         .when(erp)
-        .getPurchaseInvoice(anyString(), anyString());
+        .getVoucher(any(), anyString(), anyString());
 
     var id = createJob(chief, "2026-08-01", "2026-08-31", 202).get("id").asText();
     await()
@@ -248,5 +248,87 @@ class ReviewJobIT {
     var finalState = job(chief, id);
     assertThat(finalState.get("status").asText()).isEqualTo("CANCELLED");
     assertThat(finalState.get("progress").get("processedDocuments").asInt()).isLessThan(400);
+  }
+
+  @Test
+  void jobCanCoverSeveralVoucherTypesAtOnce() throws Exception {
+    var chief = login("j_chief3", Role.CHIEF_ACCOUNTANT);
+    doAnswer(inv -> ((ErpEntityType) inv.getArgument(0)) == ErpEntityType.SALES_INVOICE ? 3L : 2L)
+        .when(erp)
+        .countVouchers(any(), anyString(), any(), any());
+    doAnswer(
+            inv ->
+                ((ErpEntityType) inv.getArgument(0)) == ErpEntityType.SALES_INVOICE
+                    ? List.of("s-1@2026-07-01", "s-2@2026-07-02", "s-3@2026-07-03")
+                    : List.of("p-1", "p-2"))
+        .when(erp)
+        .listVoucherIds(any(), anyString(), any(), any(), anyLong(), anyInt());
+    doAnswer(
+            inv -> {
+              ErpEntityType type = inv.getArgument(0);
+              String ref = inv.getArgument(2);
+              var base = voucher(ref, "12345");
+              return new ErpVoucher(
+                  ref,
+                  COMPANY,
+                  type,
+                  1,
+                  base.voucherNo(),
+                  base.voucherDate(),
+                  base.postedDate(),
+                  "d",
+                  base.partner(),
+                  "VND",
+                  BigDecimal.ONE,
+                  BigDecimal.TEN,
+                  BigDecimal.ZERO,
+                  BigDecimal.ZERO,
+                  true,
+                  List.of(),
+                  null);
+            })
+        .when(erp)
+        .getVoucher(any(), anyString(), anyString());
+
+    var body =
+        mapper.readTree(
+            mvc.perform(
+                    post("/api/v1/review-jobs")
+                        .header("Authorization", chief)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            "{\"periodFrom\":\"2026-07-01\",\"periodTo\":\"2026-07-31\",\"entityTypes\":[\"SALES_INVOICE\",\"PAYMENT\"]}"))
+                .andExpect(status().isAccepted())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    var id = body.get("id").asText();
+    assertThat(body.get("totalBatches").asInt()).isEqualTo(2); // mỗi loại một batch
+    assertThat(body.get("progress").get("totalDocuments").asInt()).isEqualTo(5);
+
+    awaitFinal(chief, id, 60);
+    var done = job(chief, id);
+    assertThat(done.get("status").asText()).isEqualTo("COMPLETED");
+    assertThat(done.get("progress").get("processedDocuments").asInt()).isEqualTo(5);
+    assertThat(done.get("violationCount").asInt())
+        .isEqualTo(5); // MST sai ở cả hóa đơn bán hàng lẫn phiếu chi
+    mvc.perform(
+            get("/api/v1/violations?reviewJobId=" + id + "&entityType=SALES_INVOICE")
+                .header("Authorization", chief))
+        .andExpect(jsonPath("$.totalItems").value(3));
+    mvc.perform(
+            get("/api/v1/violations?reviewJobId=" + id + "&entityType=PAYMENT")
+                .header("Authorization", chief))
+        .andExpect(jsonPath("$.totalItems").value(2));
+
+    // loại chưa có adapter bị từ chối ngay khi tạo job
+    mvc.perform(
+            post("/api/v1/review-jobs")
+                .header("Authorization", chief)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"periodFrom\":\"2026-06-01\",\"periodTo\":\"2026-06-30\",\"entityTypes\":[\"JOURNAL_ENTRY\"]}"))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.code").value("RULE_ENTITY_TYPE_UNSUPPORTED"));
   }
 }

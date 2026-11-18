@@ -72,11 +72,7 @@ public class RuleCheckService {
   public CheckResultResponse check(
       CurrentUser user, ErpEntityType type, String entityRef, Set<Group> groups) {
     long start = System.nanoTime();
-    ErpVoucher voucher =
-        switch (type) {
-          case PURCHASE_INVOICE -> erp.getPurchaseInvoice(user.companyId(), entityRef);
-          default -> erp.getVoucher(type, user.companyId(), entityRef);
-        };
+    ErpVoucher voucher = erp.getVoucher(type, user.companyId(), entityRef);
     var active =
         catalog.all().stream()
             .map(a -> a.definition())

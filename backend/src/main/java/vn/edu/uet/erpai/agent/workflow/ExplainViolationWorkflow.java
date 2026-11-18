@@ -103,7 +103,11 @@ public class ExplainViolationWorkflow {
     }
     long start = System.nanoTime();
     var rule = rules.get(violation.ruleId());
-    ErpVoucher voucher = erp.getPurchaseInvoice(user.companyId(), violation.entityRef());
+    ErpVoucher voucher =
+        erp.getVoucher(
+            vn.edu.uet.erpai.erp.model.ErpEntityType.valueOf(violation.entityType()),
+            user.companyId(),
+            violation.entityRef());
     LocalDate asOf = voucher.voucherDate() != null ? voucher.voucherDate() : LocalDate.now();
 
     var query = buildQuery(rule.ragQuery(), rule.legalRefs(), violation);

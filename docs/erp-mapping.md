@@ -115,3 +115,12 @@ Sổ cái hợp nhất mọi chứng từ: `GeneralLedger` (header dòng sổ, 5
 ## 9. Truy vấn rule liên chứng từ & tra cứu NCC (đã thêm)
 - `rule-duplicate-invoice.sql`: trùng (MST bán, ký hiệu, số HĐ) — nối `PPInvoice → PPInvoiceDetail → AccountingObject`. `PPInvoiceDetail` **không có index** theo số hóa đơn nên truy vấn dựa vào index `CompanyID` của `PPInvoice` + `TOP 5`; cần đo trên dữ liệu thật và có thể cần giới hạn khoảng ngày.
 - `partner-by-tax-code.sql`: tra `AccountingObject` theo `CompanyID + TaxCode`; chưa biết index của `TaxCode`.
+
+## 10. Hóa đơn bán hàng và phiếu chi (đã thêm)
+| Canonical | Header | Chi tiết | Ghi chú |
+|---|---|---|---|
+| `SALES_INVOICE` | `SAInvoice` | `SAInvoiceDetail` | TypeID 320–322. **Khóa `entityRef` dạng `GUID@yyyy-MM-dd`**: PK của `SAInvoice` là `(Date, ID)` và dòng nối qua `DatePartition`, nên có ngày thì truy vấn dùng index; không có ngày thì chỉ lọc `CompanyID + ID` (chậm). Số/ký hiệu hóa đơn nằm ở **header** |
+| `PAYMENT` | `MCPayment` | `MCPaymentDetail` | TypeID 110–118 (phiếu chi tiền mặt). Chưa gồm báo Nợ (`MBTellerPaper`) |
+
+Cần xác nhận khi chạy với dữ liệu thật: (1) `DatePartition` có bằng `Date` của header (đã có truy vấn dự phòng không lọc phân vùng); (2) TypeID bán hàng khác (330–353 hàng bán trả lại/giảm giá/xuất hóa đơn) nằm ở bảng nào; (3) ý nghĩa `SAInvoice.CompanyTaxCode` (hiện dùng MST từ `AccountingObject` làm MST đối tác).
+Rule áp dụng cho cả ba loại: `FLD_*`, `DOC_ACCOUNT_NOT_DETAIL`, `REG_ACCOUNT_REGIME_MISMATCH`; rule mua hàng (`DOC_VAT_*`, `XDOC_DUPLICATE_INVOICE`, `ANM_UNIT_PRICE_OUTLIER`, `REG_CASH_*`) chỉ chạy trên `PURCHASE_INVOICE`.

@@ -89,7 +89,7 @@ class ExplainViolationWorkflowMaskingTest {
                 0L,
                 null,
                 null));
-    when(erp.getPurchaseInvoice(any(), any()))
+    when(erp.getVoucher(any(), any(), any()))
         .thenReturn(
             new ErpVoucher(
                 "ref",

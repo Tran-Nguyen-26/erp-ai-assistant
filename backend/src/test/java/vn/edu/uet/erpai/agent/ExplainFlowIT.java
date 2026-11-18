@@ -109,7 +109,7 @@ class ExplainFlowIT extends AbstractPostgresIT {
   @Test
   void explainValidatesCitationsCachesAndRefusesWithoutEvidence() throws Exception {
     var token = login();
-    when(erp.getPurchaseInvoice(anyString(), anyString()))
+    when(erp.getVoucher(any(), anyString(), anyString()))
         .thenReturn(
             new ErpVoucher(
                 REF,

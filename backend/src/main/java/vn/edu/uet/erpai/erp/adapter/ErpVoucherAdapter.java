@@ -223,13 +223,13 @@ public class ErpVoucherAdapter {
     }
   }
 
-  private static LocalDate date(ResultSet rs, String col) throws SQLException {
+  static LocalDate date(ResultSet rs, String col) throws SQLException {
     var d = rs.getTimestamp(col);
     return d == null ? null : d.toLocalDateTime().toLocalDate();
   }
 
   /** Tiền/số lượng: NULL → 0 để rule không phải xử lý null. */
-  private static BigDecimal money(ResultSet rs, String col) throws SQLException {
+  static BigDecimal money(ResultSet rs, String col) throws SQLException {
     var v = rs.getBigDecimal(col);
     return v == null ? BigDecimal.ZERO : v;
   }

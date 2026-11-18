@@ -21,12 +21,14 @@ public class GetErpVoucherTool implements AgentTool {
 
   @Override
   public String description() {
-    return "Lấy chi tiết một hóa đơn mua hàng. Input: voucherRef (GUID). Output: thông tin chứng từ, đối tượng, hóa đơn và các dòng.";
+    return "Lấy chi tiết một chứng từ. Input: voucherRef (khóa chứng từ), entityType (PURCHASE_INVOICE mặc định, SALES_INVOICE, PAYMENT). Output: thông tin chứng từ, đối tượng, hóa đơn và các dòng.";
   }
 
   @Override
   public ToolResult execute(CurrentUser user, Map<String, Object> args) {
-    var v = erp.getPurchaseInvoice(user.companyId(), ToolArgs.string(args, "voucherRef", true));
+    var v =
+        erp.getVoucher(
+            ToolArgs.entityType(args), user.companyId(), ToolArgs.string(args, "voucherRef", true));
     var sb = new StringBuilder();
     sb.append("Chứng từ ")
         .append(v.voucherNo())

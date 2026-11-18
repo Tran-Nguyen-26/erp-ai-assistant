@@ -59,7 +59,11 @@ public class ReviewBatchConsumer {
         return;
       }
       try {
-        var voucher = erp.getPurchaseInvoice(msg.companyId(), ref);
+        var voucher =
+            erp.getVoucher(
+                vn.edu.uet.erpai.erp.model.ErpEntityType.valueOf(msg.entityType()),
+                msg.companyId(),
+                ref);
         violations += checker.checkAndStore(msg.companyId(), voucher, msg.jobId(), groups, ruleIds);
       } catch (BusinessException e) {
         if (!"ERP_VOUCHER_NOT_FOUND".equals(e.getCode())) {

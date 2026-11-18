@@ -76,9 +76,10 @@ public class ReviewJobService {
         req.entityTypes() == null || req.entityTypes().isEmpty()
             ? EnumSet.of(ErpEntityType.PURCHASE_INVOICE)
             : EnumSet.copyOf(req.entityTypes());
-    if (!types.equals(EnumSet.of(ErpEntityType.PURCHASE_INVOICE))) {
+    if (!ErpQueryService.SUPPORTED_TYPES.containsAll(types)) {
       throw new BusinessException(
-          "RULE_ENTITY_TYPE_UNSUPPORTED", "Hiện chỉ rà soát hàng loạt được PURCHASE_INVOICE");
+          "RULE_ENTITY_TYPE_UNSUPPORTED",
+          "Chỉ rà soát hàng loạt được các loại: " + ErpQueryService.SUPPORTED_TYPES);
     }
     if (jobs.existsByCompanyIdAndPeriodFromAndPeriodToAndStatusIn(
         user.companyId(),
@@ -89,8 +90,13 @@ public class ReviewJobService {
           "REVIEW_JOB_ALREADY_RUNNING", "Đã có job đang chạy cho kỳ này", HttpStatus.CONFLICT);
     }
 
-    long total = erp.countPurchaseInvoices(user.companyId(), req.periodFrom(), req.periodTo());
-    int batches = (int) ((total + BATCH_SIZE - 1) / BATCH_SIZE);
+    long total = 0;
+    int batches = 0;
+    for (var type : types) {
+      long n = erp.countVouchers(type, user.companyId(), req.periodFrom(), req.periodTo());
+      total += n;
+      batches += (int) ((n + BATCH_SIZE - 1) / BATCH_SIZE);
+    }
     var scope =
         Map.<String, Object>of(
             "entityTypes", types.stream().map(Enum::name).sorted().toList(),
@@ -113,7 +119,7 @@ public class ReviewJobService {
     if (total == 0) {
       job.completeImmediately();
     } else {
-      var messages = buildBatches(user.companyId(), job.getId(), req);
+      var messages = buildBatches(user.companyId(), job.getId(), req, types);
       // chỉ publish sau khi job đã commit để worker luôn thấy được job
       TransactionSynchronizationManager.registerSynchronization(
           new TransactionSynchronization() {
@@ -135,33 +141,35 @@ public class ReviewJobService {
     return ReviewJobResponse.from(job, Map.of());
   }
 
-  private List<ReviewBatchMessage> buildBatches(String companyId, UUID jobId, CreateRequest req) {
+  private List<ReviewBatchMessage> buildBatches(
+      String companyId, UUID jobId, CreateRequest req, Set<ErpEntityType> types) {
     var messages = new ArrayList<ReviewBatchMessage>();
-    var buffer = new ArrayList<String>();
-    long offset = 0;
     int batchNo = 0;
-    while (true) {
-      var page =
-          erp.listPurchaseInvoiceIds(companyId, req.periodFrom(), req.periodTo(), offset, ID_PAGE);
-      if (page.isEmpty()) break;
-      buffer.addAll(page);
-      offset += page.size();
-      while (buffer.size() >= BATCH_SIZE) {
-        messages.add(
-            new ReviewBatchMessage(
-                jobId,
-                companyId,
-                "PURCHASE_INVOICE",
-                ++batchNo,
-                List.copyOf(buffer.subList(0, BATCH_SIZE))));
-        buffer.subList(0, BATCH_SIZE).clear();
+    for (var type : types) {
+      var buffer = new ArrayList<String>();
+      long offset = 0;
+      while (true) {
+        var page =
+            erp.listVoucherIds(type, companyId, req.periodFrom(), req.periodTo(), offset, ID_PAGE);
+        if (page.isEmpty()) break;
+        buffer.addAll(page);
+        offset += page.size();
+        while (buffer.size() >= BATCH_SIZE) {
+          messages.add(
+              new ReviewBatchMessage(
+                  jobId,
+                  companyId,
+                  type.name(),
+                  ++batchNo,
+                  List.copyOf(buffer.subList(0, BATCH_SIZE))));
+          buffer.subList(0, BATCH_SIZE).clear();
+        }
+        if (page.size() < ID_PAGE) break;
       }
-      if (page.size() < ID_PAGE) break;
-    }
-    if (!buffer.isEmpty()) {
-      messages.add(
-          new ReviewBatchMessage(
-              jobId, companyId, "PURCHASE_INVOICE", ++batchNo, List.copyOf(buffer)));
+      if (!buffer.isEmpty()) {
+        messages.add(
+            new ReviewBatchMessage(jobId, companyId, type.name(), ++batchNo, List.copyOf(buffer)));
+      }
     }
     return messages;
   }

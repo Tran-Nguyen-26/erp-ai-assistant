@@ -25,14 +25,15 @@ public class RunRulesTool implements AgentTool {
 
   @Override
   public String description() {
-    return "Chạy các rule kiểm tra trên một hóa đơn mua hàng (không lưu). Input: entityRef (GUID)."
+    return "Chạy các rule kiểm tra trên một chứng từ (không lưu). Input: entityRef, entityType (PURCHASE_INVOICE mặc định, SALES_INVOICE, PAYMENT)."
         + " Output: danh sách vi phạm (rule, mức độ, thông điệp) hoặc 'không vi phạm'.";
   }
 
   @Override
   public ToolResult execute(CurrentUser user, Map<String, Object> args) {
     var voucher =
-        erp.getPurchaseInvoice(user.companyId(), ToolArgs.string(args, "entityRef", true));
+        erp.getVoucher(
+            ToolArgs.entityType(args), user.companyId(), ToolArgs.string(args, "entityRef", true));
     var eval = checker.dryRun(voucher);
     if (eval.results().isEmpty()) {
       return ToolResult.ok(

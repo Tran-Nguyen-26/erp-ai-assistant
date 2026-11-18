@@ -28,6 +28,24 @@ final class ToolArgs {
     }
   }
 
+  /** Loại chứng từ ERP (mặc định hóa đơn mua hàng); chỉ nhận loại đã có adapter. */
+  static vn.edu.uet.erpai.erp.model.ErpEntityType entityType(Map<String, Object> args) {
+    var s = string(args, "entityType", false);
+    if (s == null) {
+      return vn.edu.uet.erpai.erp.model.ErpEntityType.PURCHASE_INVOICE;
+    }
+    try {
+      var type = vn.edu.uet.erpai.erp.model.ErpEntityType.valueOf(s.toUpperCase());
+      if (vn.edu.uet.erpai.erp.service.ErpQueryService.SUPPORTED_TYPES.contains(type)) {
+        return type;
+      }
+    } catch (IllegalArgumentException e) {
+      // rơi xuống lỗi bên dưới
+    }
+    throw new BusinessException(
+        "TOOL_ARG_INVALID", "entityType phải là PURCHASE_INVOICE, SALES_INVOICE hoặc PAYMENT");
+  }
+
   /** Số nguyên trong [1, max]; mặc định {@code def}. */
   static int limit(Map<String, Object> args, String key, int def, int max) {
     var v = args == null ? null : args.get(key);

@@ -21,7 +21,7 @@ public class QueryErpTool implements AgentTool {
 
   @Override
   public String description() {
-    return "Liệt kê hóa đơn mua hàng trong ERP theo kỳ. Input: periodFrom, periodTo (yyyy-MM-dd, tối đa 12 tháng),"
+    return "Liệt kê chứng từ trong ERP theo kỳ. Input: entityType (PURCHASE_INVOICE mặc định, SALES_INVOICE, PAYMENT), periodFrom, periodTo (yyyy-MM-dd, tối đa 12 tháng),"
         + " limit (1-50, mặc định 20). Output: tổng số và danh sách (mã, số chứng từ, ngày, đối tượng, tổng tiền).";
   }
 
@@ -30,7 +30,7 @@ public class QueryErpTool implements AgentTool {
     var from = ToolArgs.date(args, "periodFrom", true);
     var to = ToolArgs.date(args, "periodTo", true);
     int limit = ToolArgs.limit(args, "limit", 20, 50);
-    var page = erp.listPurchaseInvoices(user.companyId(), from, to, 0, limit);
+    var page = erp.listVouchers(ToolArgs.entityType(args), user.companyId(), from, to, 0, limit);
     var sb =
         new StringBuilder("Tổng số: ")
             .append(page.totalItems())
@@ -60,7 +60,14 @@ public class QueryErpTool implements AgentTool {
             .map(v -> v.partner().name())
             .toList();
     return ToolResult.ok(
-            page.totalItems() + " hóa đơn mua hàng từ " + from + " đến " + to, sb.toString())
+            page.totalItems()
+                + " chứng từ "
+                + ToolArgs.entityType(args)
+                + " từ "
+                + from
+                + " đến "
+                + to,
+            sb.toString())
         .withSensitive(names);
   }
 }

@@ -30,16 +30,142 @@ public class ErpQueryService {
   public static final int MAX_PERIOD_MONTHS = 12;
 
   private final ErpVoucherAdapter adapter;
+  private final vn.edu.uet.erpai.erp.adapter.ErpSalesPaymentAdapter salesPayment;
 
-  public ErpQueryService(ErpVoucherAdapter adapter) {
+  public ErpQueryService(
+      ErpVoucherAdapter adapter, vn.edu.uet.erpai.erp.adapter.ErpSalesPaymentAdapter salesPayment) {
     this.adapter = adapter;
+    this.salesPayment = salesPayment;
   }
 
-  /** Tải chứng từ theo loại; loại chưa có adapter → lỗi nghiệp vụ rõ ràng. */
+  /** Loại chứng từ ERP đã có adapter (rà soát tức thời, job hàng loạt, đề xuất sửa, chat). */
+  public static final java.util.Set<vn.edu.uet.erpai.erp.model.ErpEntityType> SUPPORTED_TYPES =
+      java.util.EnumSet.of(
+          vn.edu.uet.erpai.erp.model.ErpEntityType.PURCHASE_INVOICE,
+          vn.edu.uet.erpai.erp.model.ErpEntityType.SALES_INVOICE,
+          vn.edu.uet.erpai.erp.model.ErpEntityType.PAYMENT);
+
+  /**
+   * Tải chứng từ theo loại. Khóa hóa đơn bán hàng có dạng {@code GUID} hoặc {@code GUID@yyyy-MM-dd}
+   * (kèm ngày để tra cứu nhanh); các loại khác chỉ là GUID.
+   */
   public ErpVoucher getVoucher(
       vn.edu.uet.erpai.erp.model.ErpEntityType type, String companyId, String entityRef) {
     return switch (type) {
       case PURCHASE_INVOICE -> getPurchaseInvoice(companyId, entityRef);
+      case SALES_INVOICE -> getSalesInvoice(companyId, entityRef);
+      case PAYMENT -> getPayment(companyId, entityRef);
+      default ->
+          throw new BusinessException(
+              "RULE_ENTITY_TYPE_UNSUPPORTED", "Chưa hỗ trợ loại chứng từ " + type);
+    };
+  }
+
+  public ErpVoucher getSalesInvoice(String companyId, String entityRef) {
+    var company = guid(companyId, "companyId");
+    var parts = entityRef == null ? new String[] {null} : entityRef.split("@", 2);
+    var id = guid(parts[0], "entityRef");
+    java.util.Optional<LocalDate> date = java.util.Optional.empty();
+    if (parts.length == 2) {
+      try {
+        date = java.util.Optional.of(LocalDate.parse(parts[1]));
+      } catch (java.time.format.DateTimeParseException e) {
+        throw new BusinessException("ERP_INVALID_REF", "entityRef: ngày phải dạng yyyy-MM-dd");
+      }
+    }
+    var d = date;
+    return guard(() -> salesPayment.findSalesInvoice(company, id, d))
+        .orElseThrow(
+            () ->
+                new BusinessException(
+                    "ERP_VOUCHER_NOT_FOUND", "Không tìm thấy chứng từ", HttpStatus.NOT_FOUND));
+  }
+
+  public ErpVoucher getPayment(String companyId, String entityRef) {
+    var company = guid(companyId, "companyId");
+    var id = guid(entityRef, "entityRef");
+    return guard(() -> salesPayment.findPayment(company, id))
+        .orElseThrow(
+            () ->
+                new BusinessException(
+                    "ERP_VOUCHER_NOT_FOUND", "Không tìm thấy chứng từ", HttpStatus.NOT_FOUND));
+  }
+
+  public ErpPage<ErpVoucher> listVouchers(
+      vn.edu.uet.erpai.erp.model.ErpEntityType type,
+      String companyId,
+      LocalDate from,
+      LocalDate to,
+      int page,
+      int size) {
+    return switch (type) {
+      case PURCHASE_INVOICE -> listPurchaseInvoices(companyId, from, to, page, size);
+      case SALES_INVOICE -> {
+        validatePeriod(from, to);
+        var company = guid(companyId, "companyId");
+        yield guard(
+            () ->
+                salesPayment.listSalesInvoices(company, from, to, safePage(page), safeSize(size)));
+      }
+      case PAYMENT -> {
+        validatePeriod(from, to);
+        var company = guid(companyId, "companyId");
+        yield guard(
+            () -> salesPayment.listPayments(company, from, to, safePage(page), safeSize(size)));
+      }
+      default ->
+          throw new BusinessException(
+              "RULE_ENTITY_TYPE_UNSUPPORTED", "Chưa hỗ trợ loại chứng từ " + type);
+    };
+  }
+
+  public long countVouchers(
+      vn.edu.uet.erpai.erp.model.ErpEntityType type,
+      String companyId,
+      LocalDate from,
+      LocalDate to) {
+    return switch (type) {
+      case PURCHASE_INVOICE -> countPurchaseInvoices(companyId, from, to);
+      case SALES_INVOICE -> {
+        validatePeriod(from, to);
+        var company = guid(companyId, "companyId");
+        yield guard(() -> salesPayment.countSalesInvoices(company, from, to));
+      }
+      case PAYMENT -> {
+        validatePeriod(from, to);
+        var company = guid(companyId, "companyId");
+        yield guard(() -> salesPayment.countPayments(company, from, to));
+      }
+      default ->
+          throw new BusinessException(
+              "RULE_ENTITY_TYPE_UNSUPPORTED", "Chưa hỗ trợ loại chứng từ " + type);
+    };
+  }
+
+  /** Khóa chứng từ trong kỳ (để chia batch rà soát); phân trang bắt buộc. */
+  public List<String> listVoucherIds(
+      vn.edu.uet.erpai.erp.model.ErpEntityType type,
+      String companyId,
+      LocalDate from,
+      LocalDate to,
+      long offset,
+      int size) {
+    return switch (type) {
+      case PURCHASE_INVOICE -> listPurchaseInvoiceIds(companyId, from, to, offset, size);
+      case SALES_INVOICE -> {
+        validatePeriod(from, to);
+        var company = guid(companyId, "companyId");
+        int safe = Math.min(Math.max(size, 1), MAX_ID_PAGE_SIZE);
+        yield guard(
+            () -> salesPayment.listSalesInvoiceIds(company, from, to, Math.max(offset, 0), safe));
+      }
+      case PAYMENT -> {
+        validatePeriod(from, to);
+        var company = guid(companyId, "companyId");
+        int safe = Math.min(Math.max(size, 1), MAX_ID_PAGE_SIZE);
+        yield guard(
+            () -> salesPayment.listPaymentIds(company, from, to, Math.max(offset, 0), safe));
+      }
       default ->
           throw new BusinessException(
               "RULE_ENTITY_TYPE_UNSUPPORTED", "Chưa hỗ trợ loại chứng từ " + type);

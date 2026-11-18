@@ -1,6 +1,7 @@
 package vn.edu.uet.erpai.review;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -87,7 +88,7 @@ class ProposalFlowIT extends AbstractPostgresIT {
 
   @Test
   void fullProposalLifecycleWithVerificationApprovalAndExport() throws Exception {
-    when(erp.getPurchaseInvoice(anyString(), anyString()))
+    when(erp.getVoucher(any(), anyString(), anyString()))
         .thenReturn(
             new ErpVoucher(
                 REF,

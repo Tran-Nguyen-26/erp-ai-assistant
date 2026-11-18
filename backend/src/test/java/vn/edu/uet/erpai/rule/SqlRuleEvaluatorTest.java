@@ -132,7 +132,10 @@ class SqlRuleEvaluatorTest {
 
   @Test
   void erpServiceRefusesArbitrarySqlRefs() {
-    var service = new ErpQueryService(mock(vn.edu.uet.erpai.erp.adapter.ErpVoucherAdapter.class));
+    var service =
+        new ErpQueryService(
+            mock(vn.edu.uet.erpai.erp.adapter.ErpVoucherAdapter.class),
+            mock(vn.edu.uet.erpai.erp.adapter.ErpSalesPaymentAdapter.class));
     for (var bad :
         new String[] {"../application", "rule-x; DROP", "purchase-invoice-by-id", null, "RULE-X"}) {
       assertThatThrownBy(() -> service.queryRule(bad, Map.of()))

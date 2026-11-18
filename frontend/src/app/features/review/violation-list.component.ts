@@ -46,6 +46,14 @@ import { SeverityChipComponent } from '../../shared/severity-chip.component';
 
       <div class="card">
         <div class="toolbar-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Loại chứng từ</mat-label>
+            <mat-select [(ngModel)]="checkType">
+              @for (t of voucherTypes; track t.value) {
+                <mat-option [value]="t.value">{{ t.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
           <mat-form-field appearance="outline" class="grow">
             <mat-label>Mã chứng từ ERP (GUID) cần rà soát ngay</mat-label>
             <input matInput [(ngModel)]="checkRef" placeholder="vd: 3F2A…" />
@@ -149,6 +157,12 @@ export class ViolationListComponent implements OnInit {
   protected status: string[] = ['OPEN', 'EXPLAINED', 'PROPOSED'];
   protected severity = '';
   protected checkRef = '';
+  protected checkType = 'PURCHASE_INVOICE';
+  protected readonly voucherTypes = [
+    { value: 'PURCHASE_INVOICE', label: 'Hóa đơn mua hàng' },
+    { value: 'SALES_INVOICE', label: 'Hóa đơn bán hàng' },
+    { value: 'PAYMENT', label: 'Phiếu chi' },
+  ];
 
   protected readonly data = signal<PageResponse<ViolationResponse> | null>(null);
   protected readonly summary = signal<ViolationSummary | null>(null);
@@ -179,7 +193,7 @@ export class ViolationListComponent implements OnInit {
 
   protected check(): void {
     this.checking.set(true);
-    this.api.check(this.checkRef.trim()).subscribe({
+    this.api.check(this.checkRef.trim(), this.checkType).subscribe({
       next: (r) => {
         this.checking.set(false);
         this.checkMsg.set(

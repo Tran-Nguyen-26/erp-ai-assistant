@@ -1,6 +1,7 @@
 package vn.edu.uet.erpai.rule;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -101,7 +102,7 @@ class RuleFlowIT extends AbstractPostgresIT {
     var accountant = login("acc_a", Role.ACCOUNTANT, COMPANY_A);
 
     // 1) chứng từ có MST sai → 1 violation OPEN
-    when(erp.getPurchaseInvoice(anyString(), anyString())).thenReturn(voucher("12345"));
+    when(erp.getVoucher(any(), anyString(), anyString())).thenReturn(voucher("12345"));
     var first = mapper.readTree(check(accountant));
     assertThat(first.get("violations")).hasSize(1);
     var v = first.get("violations").get(0);
@@ -145,7 +146,7 @@ class RuleFlowIT extends AbstractPostgresIT {
         .andExpect(jsonPath("$.status").value("OPEN"));
 
     // 5) sửa dữ liệu ERP → lần rà soát sau tự chuyển RESOLVED
-    when(erp.getPurchaseInvoice(anyString(), anyString())).thenReturn(voucher("0101234567"));
+    when(erp.getVoucher(any(), anyString(), anyString())).thenReturn(voucher("0101234567"));
     var fixed = mapper.readTree(check(accountant));
     assertThat(fixed.get("violations")).isEmpty();
     mvc.perform(get("/api/v1/violations?status=RESOLVED").header("Authorization", accountant))
@@ -157,7 +158,7 @@ class RuleFlowIT extends AbstractPostgresIT {
         .andExpect(jsonPath("$.byStatus.RESOLVED").value(1));
 
     // 6) phát hiện lại → RESOLVED trở về OPEN
-    when(erp.getPurchaseInvoice(anyString(), anyString())).thenReturn(voucher("12345"));
+    when(erp.getVoucher(any(), anyString(), anyString())).thenReturn(voucher("12345"));
     var again = mapper.readTree(check(accountant));
     assertThat(again.get("violations").get(0).get("status").asText()).isEqualTo("OPEN");
 
@@ -265,5 +266,55 @@ class RuleFlowIT extends AbstractPostgresIT {
             jdbc.queryForObject(
                 "SELECT count(*) FROM violation WHERE entity_ref = 'r1'", Integer.class))
         .isZero();
+  }
+
+  @Test
+  void salesInvoiceIsCheckedWithTheSameRulesAndKeepsItsDatedReference() throws Exception {
+    var acc = login("acc_sales", Role.ACCOUNTANT, "fafafafa-0000-0000-0000-0000000000f1");
+    var ref = "55555555-5555-5555-5555-555555555555@2026-10-20";
+    var sales =
+        new ErpVoucher(
+            ref,
+            "fafafafa-0000-0000-0000-0000000000f1",
+            ErpEntityType.SALES_INVOICE,
+            321,
+            "BH77",
+            LocalDate.of(2026, 10, 20),
+            LocalDate.of(2026, 10, 20),
+            "Bán hàng",
+            new ErpPartnerRef("c", "KH1", "Khách", "12345"),
+            "VND",
+            BigDecimal.ONE,
+            BigDecimal.TEN,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            true,
+            List.of(),
+            null);
+    when(erp.getVoucher(any(), anyString(), anyString())).thenReturn(sales);
+
+    var body =
+        mapper.readTree(
+            mvc.perform(
+                    post("/api/v1/reviews/check")
+                        .header("Authorization", acc)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            "{\"entityType\":\"SALES_INVOICE\",\"entityRef\":\"" + ref + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+    var violation = body.get("violations").get(0);
+    org.assertj.core.api.Assertions.assertThat(violation.get("ruleId").asText())
+        .isEqualTo("FLD_TAX_CODE_FORMAT");
+    org.assertj.core.api.Assertions.assertThat(violation.get("entityType").asText())
+        .isEqualTo("SALES_INVOICE");
+    org.assertj.core.api.Assertions.assertThat(violation.get("entityRef").asText()).isEqualTo(ref);
+    // rule chỉ dành cho hóa đơn mua hàng (VAT, trùng hóa đơn, đơn giá) không chạy trên hóa đơn bán
+    // hàng
+    org.assertj.core.api.Assertions.assertThat(body.get("violations").findValuesAsText("ruleId"))
+        .doesNotContain("XDOC_DUPLICATE_INVOICE");
   }
 }

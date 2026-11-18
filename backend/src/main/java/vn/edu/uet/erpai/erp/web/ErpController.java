@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import vn.edu.uet.erpai.common.security.SecurityUtils;
 import vn.edu.uet.erpai.common.web.PageResponse;
 import vn.edu.uet.erpai.erp.model.ErpAccount;
+import vn.edu.uet.erpai.erp.model.ErpEntityType;
 import vn.edu.uet.erpai.erp.service.ErpQueryService;
 
 @RestController
@@ -23,15 +24,16 @@ public class ErpController {
     this.service = service;
   }
 
-  /** Hiện hỗ trợ hóa đơn mua hàng; các loại khác bổ sung theo adapter. */
+  /** Hóa đơn mua hàng, hóa đơn bán hàng và phiếu chi (tham số entityType). */
   @GetMapping("/vouchers")
   public PageResponse<ErpVoucherResponse> vouchers(
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodFrom,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodTo,
+      @RequestParam(defaultValue = "PURCHASE_INVOICE") ErpEntityType entityType,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
     var companyId = SecurityUtils.currentUser().companyId();
-    var result = service.listPurchaseInvoices(companyId, periodFrom, periodTo, page, size);
+    var result = service.listVouchers(entityType, companyId, periodFrom, periodTo, page, size);
     int pages = (int) Math.ceil(result.totalItems() / (double) result.size());
     return new PageResponse<>(
         result.items().stream().map(ErpVoucherResponse::from).toList(),
@@ -42,9 +44,11 @@ public class ErpController {
   }
 
   @GetMapping("/vouchers/{entityRef}")
-  public ErpVoucherResponse voucher(@PathVariable String entityRef) {
+  public ErpVoucherResponse voucher(
+      @PathVariable String entityRef,
+      @RequestParam(defaultValue = "PURCHASE_INVOICE") ErpEntityType entityType) {
     return ErpVoucherResponse.from(
-        service.getPurchaseInvoice(SecurityUtils.currentUser().companyId(), entityRef));
+        service.getVoucher(entityType, SecurityUtils.currentUser().companyId(), entityRef));
   }
 
   @GetMapping("/accounts")
