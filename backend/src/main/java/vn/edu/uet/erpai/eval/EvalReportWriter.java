@@ -44,6 +44,32 @@ public final class EvalReportWriter {
             s.f1()));
   }
 
+  public static String toMarkdown(RagEvalReport r) {
+    return String.format(
+        Locale.ROOT,
+        "# Báo cáo đánh giá truy xuất RAG%n%n- Thời điểm: %s%n- Câu hỏi: %d (có đáp án: %d, ngoài kho: %d)%n"
+            + "- Hit@1 %.3f · Hit@3 %.3f · Hit@5 %.3f · MRR %.3f%n- Tỷ lệ từ chối đúng (ngoài kho): %.3f%n"
+            + "- Độ trễ: p50 %d ms, p95 %d ms%n",
+        Instant.now(),
+        r.questions(),
+        r.answerable(),
+        r.unanswerable(),
+        r.hitAt1(),
+        r.hitAt3(),
+        r.hitAt5(),
+        r.mrr(),
+        r.refusalRate(),
+        r.p50Millis(),
+        r.p95Millis());
+  }
+
+  public static Path write(RagEvalReport r, Path dir) throws IOException {
+    Files.createDirectories(dir);
+    var file = dir.resolve("rag-eval-" + Instant.now().toString().replace(':', '-') + ".md");
+    Files.writeString(file, toMarkdown(r), StandardCharsets.UTF_8);
+    return file;
+  }
+
   public static Path write(RuleEvalReport r, Path dir) throws IOException {
     Files.createDirectories(dir);
     var file = dir.resolve("rule-eval-" + Instant.now().toString().replace(':', '-') + ".md");

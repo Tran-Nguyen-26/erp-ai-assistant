@@ -1,0 +1,14 @@
+[
+  {
+    "question": "VÍ DỤ (không phải luật thật): thời hạn lập hóa đơn khi bán hàng hóa là khi nào?",
+    "asOf": "2026-10-15",
+    "answerable": true,
+    "relevant": [{ "docNumber": "SO-HIEU-THAT-CUA-VAN-BAN", "headingPath": "Chương II > Điều 9" }]
+  },
+  {
+    "question": "VÍ DỤ: câu hỏi nằm ngoài kho tri thức, hệ thống phải từ chối",
+    "asOf": "2026-10-15",
+    "answerable": false,
+    "relevant": []
+  }
+]

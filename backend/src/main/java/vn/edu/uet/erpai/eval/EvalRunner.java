@@ -1,11 +1,14 @@
 package vn.edu.uet.erpai.eval;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.nio.file.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import vn.edu.uet.erpai.knowledge.service.KnowledgeSearchService;
 import vn.edu.uet.erpai.rule.engine.RuleEngine;
 
 /**
@@ -18,10 +21,16 @@ public class EvalRunner implements CommandLineRunner {
 
   private static final Logger log = LoggerFactory.getLogger(EvalRunner.class);
 
-  private final RuleEngine engine;
+  private static final Path RAG_DATASET = Path.of("../eval/datasets/rag-questions.json");
 
-  public EvalRunner(RuleEngine engine) {
+  private final RuleEngine engine;
+  private final KnowledgeSearchService knowledge;
+  private final ObjectMapper mapper;
+
+  public EvalRunner(RuleEngine engine, KnowledgeSearchService knowledge, ObjectMapper mapper) {
     this.engine = engine;
+    this.knowledge = knowledge;
+    this.mapper = mapper.copy().registerModule(new JavaTimeModule());
   }
 
   @Override

@@ -1136,5 +1136,10 @@ Phần này ghi các điểm triển khai **khác hoặc vượt** so với thi�
 - Metrics Micrometer qua `AppMetrics`: `rule.evaluation` (nhãn `rule`), `llm.call`, `rag.retrieval` (nhãn `outcome`). Chưa thêm `micrometer-registry-prometheus` nên `/actuator/prometheus` chưa có dữ liệu xuất.
 - Đánh giá offline (`vn.edu.uet.erpai.eval`, profile `eval`): sinh chứng từ tổng hợp cài lỗi có nhãn, precision/recall từng rule SpEL, thông lượng 1000 chứng từ, `RankingMetrics` (Hit@k, MRR) cho RAG; báo cáo Markdown vào `eval/reports/`.
 
+- Bảo mật prompt: `PromptSafety` vô hiệu hóa `<` `>` trong dữ liệu không tin cậy (ADR 0012).
+- Đánh giá RAG: `RagEvalRunner` đọc `eval/datasets/rag-questions.json` (mẫu: `rag-questions.example.json`; câu hỏi và đoạn luật đúng do người dùng cung cấp), tính Hit@1/3/5, MRR, tỷ lệ từ chối đúng với câu hỏi ngoài kho, p50/p95.
+- `GET /erp/vouchers?hasViolations=true`: `q` lọc ở phía vi phạm (đúng tổng số/phân trang), kết hợp với `partnerTaxCode` trả 422; mỗi chứng từ được tải riêng từ ERP nên nên tải theo lô khi số lượng lớn.
+- Kiểm tra giả định dữ liệu ERP: `docs/erp-verification.md`.
+
 ### 13.9. Chưa làm
 Chạy với SQL Server/Ollama/reranker thật (chưa có môi trường), runner RAG trên mô hình thật và đo tỷ lệ đề xuất qua kiểm chứng, rule `XDOC_NEGATIVE_STOCK`, Langfuse/OTel, giảm giá bán hàng (TypeID 340–345 chưa xác định bảng).
