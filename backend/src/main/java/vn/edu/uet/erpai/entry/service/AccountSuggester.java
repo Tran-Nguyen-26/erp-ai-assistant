@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import vn.edu.uet.erpai.common.llm.LlmClient;
+import vn.edu.uet.erpai.common.llm.PromptSafety;
 import vn.edu.uet.erpai.common.util.Prompts;
 import vn.edu.uet.erpai.entry.extractor.ExtractedInvoice;
 import vn.edu.uet.erpai.entry.service.EntryDraftResponse.SuggestedEntry;
@@ -120,9 +121,9 @@ public class AccountSuggester {
           llm.generate(
               prompt.body(),
               "<accounts>\n"
-                  + accounts
+                  + PromptSafety.data(accounts)
                   + "\n</accounts>\n<lines>\n"
-                  + lines
+                  + PromptSafety.data(lines)
                   + "</lines>\nChọn tài khoản Nợ cho từng dòng.",
               Choices.class);
       var valid = new java.util.HashMap<Integer, Choice>();

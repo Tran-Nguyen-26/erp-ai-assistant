@@ -23,6 +23,7 @@ import vn.edu.uet.erpai.audit.service.ActorType;
 import vn.edu.uet.erpai.audit.service.AuditEvent;
 import vn.edu.uet.erpai.common.exception.BusinessException;
 import vn.edu.uet.erpai.common.llm.LlmClient;
+import vn.edu.uet.erpai.common.llm.PromptSafety;
 import vn.edu.uet.erpai.common.pii.PiiMaskingService;
 import vn.edu.uet.erpai.common.security.CurrentUser;
 import vn.edu.uet.erpai.erp.model.ErpVoucher;
@@ -301,41 +302,43 @@ public class ExplainViolationWorkflow {
     var sb = new StringBuilder();
     sb.append("<violation>\n")
         .append("Mã quy tắc: ")
-        .append(v.ruleId())
+        .append(PromptSafety.data(v.ruleId()))
         .append('\n')
         .append("Tên quy tắc: ")
-        .append(v.ruleName())
+        .append(PromptSafety.data(v.ruleName()))
         .append('\n')
         .append("Mức độ: ")
         .append(v.severity())
         .append('\n')
         .append("Thông điệp: ")
-        .append(v.message())
+        .append(PromptSafety.data(v.message()))
         .append('\n')
         .append("Bằng chứng: ")
-        .append(v.evidence())
+        .append(PromptSafety.data(v.evidence()))
         .append('\n')
         .append("</violation>\n");
     sb.append("<erp_data>\n")
         .append("Số chứng từ: ")
-        .append(voucher.voucherNo())
+        .append(PromptSafety.data(voucher.voucherNo()))
         .append('\n')
         .append("Ngày chứng từ: ")
         .append(voucher.voucherDate())
         .append('\n')
         .append("Diễn giải: ")
-        .append(voucher.description())
+        .append(PromptSafety.data(voucher.description()))
         .append('\n');
     if (voucher.partner() != null) {
       sb.append("Đối tượng: ")
-          .append(voucher.partner().name())
+          .append(PromptSafety.data(voucher.partner().name()))
           .append(" (MST ")
-          .append(voucher.partner().taxCode())
+          .append(PromptSafety.data(voucher.partner().taxCode()))
           .append(")\n");
     }
     sb.append("</erp_data>\n");
     if (!legalRefs.isEmpty()) {
-      sb.append("Căn cứ liên quan: ").append(String.join("; ", legalRefs)).append('\n');
+      sb.append("Căn cứ liên quan: ")
+          .append(PromptSafety.data(String.join("; ", legalRefs)))
+          .append('\n');
     }
     sb.append("<passages>\n");
     for (int i = 0; i < passages.size(); i++) {
@@ -343,11 +346,11 @@ public class ExplainViolationWorkflow {
       sb.append('[')
           .append(i + 1)
           .append("] ")
-          .append(p.docNumber() == null ? p.docTitle() : p.docNumber())
+          .append(PromptSafety.data(p.docNumber() == null ? p.docTitle() : p.docNumber()))
           .append(" — ")
-          .append(p.headingPath())
+          .append(PromptSafety.data(p.headingPath()))
           .append(":\n")
-          .append(p.content())
+          .append(PromptSafety.data(p.content()))
           .append("\n\n");
     }
     sb.append("</passages>\nHãy giải thích sai lệch trên theo đúng định dạng yêu cầu.");

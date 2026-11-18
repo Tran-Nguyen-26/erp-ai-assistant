@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import vn.edu.uet.erpai.common.exception.BusinessException;
 import vn.edu.uet.erpai.common.llm.LlmClient;
+import vn.edu.uet.erpai.common.llm.PromptSafety;
 import vn.edu.uet.erpai.common.util.Prompts;
 
 /**
@@ -36,7 +37,9 @@ public class LlmInvoiceExtractor {
     var out =
         llm.generate(
             prompt.body(),
-            "<document>\n" + clipped + "\n</document>\nHãy trích xuất hóa đơn từ tài liệu trên.",
+            "<document>\n"
+                + PromptSafety.data(clipped)
+                + "\n</document>\nHãy trích xuất hóa đơn từ tài liệu trên.",
             LlmInvoice.class);
     return convert(out);
   }

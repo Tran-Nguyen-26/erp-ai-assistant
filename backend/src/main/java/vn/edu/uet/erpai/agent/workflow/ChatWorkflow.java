@@ -28,6 +28,7 @@ import vn.edu.uet.erpai.audit.service.ActorType;
 import vn.edu.uet.erpai.audit.service.AuditEvent;
 import vn.edu.uet.erpai.common.exception.BusinessException;
 import vn.edu.uet.erpai.common.llm.LlmClient;
+import vn.edu.uet.erpai.common.llm.PromptSafety;
 import vn.edu.uet.erpai.common.pii.PiiMaskingService;
 import vn.edu.uet.erpai.common.security.CurrentUser;
 import vn.edu.uet.erpai.knowledge.retrieval.RetrievedChunk;
@@ -334,15 +335,17 @@ public class ChatWorkflow {
       sb.append("<history>\n");
       for (var h : history) {
         sb.append("USER".equals(h.getRole()) ? "Người dùng: " : "Trợ lý: ")
-            .append(cut(h.getContent(), 800))
+            .append(PromptSafety.data(cut(h.getContent(), 800)))
             .append('\n');
       }
       sb.append("</history>\n");
     }
-    sb.append("<question>\n").append(turn.content()).append("\n</question>\n");
+    sb.append("<question>\n").append(PromptSafety.data(turn.content())).append("\n</question>\n");
     var entityRef = turn.context().get("entityRef");
     if (entityRef != null) {
-      sb.append("<context>Chứng từ đang xem: ").append(entityRef).append("</context>\n");
+      sb.append("<context>Chứng từ đang xem: ")
+          .append(PromptSafety.data(entityRef))
+          .append("</context>\n");
     }
     if (!st.scratch.isEmpty()) {
       sb.append("<tool_results>\n");
@@ -352,7 +355,7 @@ public class ChatWorkflow {
             .append("\" status=\"")
             .append(s.status())
             .append("\">\n")
-            .append(decision ? cut(s.content(), 1500) : s.content())
+            .append(PromptSafety.data(decision ? cut(s.content(), 1500) : s.content()))
             .append("\n</tool_result>\n");
       }
       sb.append("</tool_results>\n");
@@ -364,11 +367,11 @@ public class ChatWorkflow {
         sb.append('[')
             .append(i + 1)
             .append("] ")
-            .append(p.docNumber() == null ? p.docTitle() : p.docNumber())
+            .append(PromptSafety.data(p.docNumber() == null ? p.docTitle() : p.docNumber()))
             .append(" — ")
-            .append(p.headingPath())
+            .append(PromptSafety.data(p.headingPath()))
             .append(":\n")
-            .append(decision ? cut(p.content(), 300) : p.content())
+            .append(PromptSafety.data(decision ? cut(p.content(), 300) : p.content()))
             .append("\n\n");
       }
       sb.append("</passages>\n");
