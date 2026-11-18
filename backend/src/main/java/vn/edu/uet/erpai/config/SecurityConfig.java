@@ -41,6 +41,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/actuator/health/**", "/actuator/info")
                     .permitAll()
+                    .requestMatchers("/actuator/prometheus") // số liệu vận hành: chỉ quản trị viên
+                    .hasRole("ADMIN")
                     .anyRequest()
                     .authenticated())
         .exceptionHandling(

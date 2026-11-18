@@ -1133,7 +1133,7 @@ Phần này ghi các điểm triển khai **khác hoặc vượt** so với thi�
 ### 13.8. Đã bổ sung sau đó
 - `GET /erp/vouchers` chuyển sang `web.VoucherSearchController` (tầng tổng hợp, vì `erp` không được phụ thuộc `rule`): lọc `q`, `partnerTaxCode`, `hasViolations`; trả `openViolationCount`, `maxSeverity`.
 - Rule mới: `FLD_DATE_IN_FUTURE` (bật); `DOC_TOTAL_MISMATCH`, `DOC_INVALID_VAT_RATE`, `XDOC_PAYMENT_EXCEEDS_DEBT` (TẮT cho đến khi xác nhận với dữ liệu thật). Không làm `XDOC_NEGATIVE_STOCK` (chưa có adapter kho) và kiểm tra kỳ khóa sổ (schema chỉ có cột `ID` ở `LockAccount`).
-- Metrics Micrometer qua `AppMetrics`: `rule.evaluation` (nhãn `rule`), `llm.call`, `rag.retrieval` (nhãn `outcome`). Chưa thêm `micrometer-registry-prometheus` nên `/actuator/prometheus` chưa có dữ liệu xuất.
+- Metrics Micrometer qua `AppMetrics`: `rule.evaluation` (nhãn `rule`), `llm.call`, `rag.retrieval` (nhãn `outcome`). `micrometer-registry-prometheus` đã được thêm; `/actuator/prometheus` chỉ dành cho ADMIN (có test).
 - Đánh giá offline (`vn.edu.uet.erpai.eval`, profile `eval`): sinh chứng từ tổng hợp cài lỗi có nhãn, precision/recall từng rule SpEL, thông lượng 1000 chứng từ, `RankingMetrics` (Hit@k, MRR) cho RAG; báo cáo Markdown vào `eval/reports/`.
 
 - Bảo mật prompt: `PromptSafety` vô hiệu hóa `<` `>` trong dữ liệu không tin cậy (ADR 0012).
