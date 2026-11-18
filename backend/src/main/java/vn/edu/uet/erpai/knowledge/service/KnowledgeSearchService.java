@@ -4,7 +4,9 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.IntStream;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import vn.edu.uet.erpai.common.metrics.AppMetrics;
 import vn.edu.uet.erpai.knowledge.retrieval.HybridRetriever;
 import vn.edu.uet.erpai.knowledge.retrieval.RerankerClient;
 import vn.edu.uet.erpai.knowledge.retrieval.RetrievalResult;
@@ -21,14 +23,27 @@ public class KnowledgeSearchService {
   private final RerankerClient reranker;
   private final RagProperties props;
 
+  private final AppMetrics metrics;
+
   public KnowledgeSearchService(
       HybridRetriever retriever, RerankerClient reranker, RagProperties props) {
+    this(retriever, reranker, props, AppMetrics.noop());
+  }
+
+  @Autowired
+  public KnowledgeSearchService(
+      HybridRetriever retriever, RerankerClient reranker, RagProperties props, AppMetrics metrics) {
     this.retriever = retriever;
     this.reranker = reranker;
     this.props = props;
+    this.metrics = metrics;
   }
 
   public RetrievalResult search(String query, LocalDate asOf, Integer topK) {
+    return metrics.time("rag.retrieval", () -> doSearch(query, asOf, topK));
+  }
+
+  private RetrievalResult doSearch(String query, LocalDate asOf, Integer topK) {
     var candidates = retriever.retrieve(query, asOf == null ? LocalDate.now() : asOf);
     if (candidates.isEmpty()) {
       return new RetrievalResult(List.of(), 0.0, false);

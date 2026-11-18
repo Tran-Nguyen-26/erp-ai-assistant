@@ -3,7 +3,9 @@ package vn.edu.uet.erpai.rule.engine;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import vn.edu.uet.erpai.common.metrics.AppMetrics;
 import vn.edu.uet.erpai.erp.model.ErpVoucher;
 import vn.edu.uet.erpai.rule.definition.RuleDefinition;
 import vn.edu.uet.erpai.rule.definition.RuleLoader;
@@ -19,10 +21,19 @@ public class RuleEngine {
   private final SpelRuleEvaluator spel;
   private final SqlRuleEvaluator sql;
 
+  private final AppMetrics metrics;
+
   public RuleEngine(RuleLoader loader, SpelRuleEvaluator spel, SqlRuleEvaluator sql) {
+    this(loader, spel, sql, AppMetrics.noop());
+  }
+
+  @Autowired
+  public RuleEngine(
+      RuleLoader loader, SpelRuleEvaluator spel, SqlRuleEvaluator sql, AppMetrics metrics) {
     this.rules = loader.loadAll();
     this.spel = spel;
     this.sql = sql;
+    this.metrics = metrics;
   }
 
   public List<RuleDefinition> rules() {
@@ -49,13 +60,21 @@ public class RuleEngine {
         continue;
       }
       if (rule.evaluator() == RuleDefinition.Evaluator.SQL) {
-        results.addAll(sql.evaluate(rule, voucher));
+        results.addAll(
+            metrics.time(
+                "rule.evaluation", () -> sql.evaluate(rule, voucher), "rule", rule.ruleId()));
         continue;
       }
       if (rule.needs("ACCOUNTS") && data == null) {
         data = reference.get();
       }
-      results.addAll(spel.evaluate(rule, voucher, data == null ? RuleReferenceData.EMPTY : data));
+      var refData = data == null ? RuleReferenceData.EMPTY : data;
+      results.addAll(
+          metrics.time(
+              "rule.evaluation",
+              () -> spel.evaluate(rule, voucher, refData),
+              "rule",
+              rule.ruleId()));
     }
     return List.copyOf(results);
   }

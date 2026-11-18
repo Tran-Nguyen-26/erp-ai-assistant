@@ -1124,11 +1124,17 @@ Phần này ghi các điểm triển khai **khác hoặc vượt** so với thi�
 - Nháp chạy qua cùng rule engine như chứng từ ERP; `confirm` chốt dữ liệu để xuất (JSON/XLSX), không ghi ERP.
 
 ### 13.6. Loại chứng từ ERP (§9.2)
-- Có adapter: hóa đơn mua hàng (`PPInvoice`), hóa đơn bán hàng (`SAInvoice`), phiếu chi (`MCPayment`). Mọi luồng dùng `ErpQueryService.getVoucher/listVouchers/countVouchers/listVoucherIds(type, …)`. Chi tiết ánh xạ và điểm cần xác nhận với dữ liệu thật: `docs/erp-mapping.md`.
+- Có adapter: hóa đơn mua hàng (`PPInvoice`), hóa đơn bán hàng (`SAInvoice`) và 6 loại chứng từ dùng chung `ErpVoucherKindAdapter` (phiếu chi `MCPayment`, phiếu thu `MCReceipt`, báo Nợ `MBTellerPaper`, báo Có `MBDeposit`, hàng mua trả lại `PPDiscountReturn`, hàng bán trả lại `SAReturn`; cùng bộ alias cột SQL, được test đối chiếu). Mọi luồng dùng `ErpQueryService.getVoucher/listVouchers/countVouchers/listVoucherIds(type, …)`. Chi tiết ánh xạ và điểm cần xác nhận với dữ liệu thật: `docs/erp-mapping.md`.
 
 ### 13.7. Phê duyệt và xuất (§5.5)
 - Proposal chỉ có `UPDATE_FIELD` (đường dẫn như `lines[0].vatAmount`, `partner.taxCode`); kiểm chứng = áp lên bản sao rồi chạy lại **mọi** rule, từ chối nếu vi phạm gốc còn hoặc xuất hiện lỗi ERROR mới.
 - Xuất phiếu đề nghị: CSV, XLSX, PDF (nhúng DejaVu Sans). `ErpWriteBackPort` mặc định `ExportOnlyWriteBack`.
 
-### 13.8. Chưa làm
-Báo Nợ/Báo Có ngân hàng và hàng bán trả lại, bộ đánh giá (`eval`), rule `REG`/`ANM` còn lại, lọc `q/partnerTaxCode/openViolationCount` ở `GET /erp/vouchers`, Langfuse/OTel trace, kiểm thử với SQL Server/Ollama/reranker thật.
+### 13.8. Đã bổ sung sau đó
+- `GET /erp/vouchers` chuyển sang `web.VoucherSearchController` (tầng tổng hợp, vì `erp` không được phụ thuộc `rule`): lọc `q`, `partnerTaxCode`, `hasViolations`; trả `openViolationCount`, `maxSeverity`.
+- Rule mới: `FLD_DATE_IN_FUTURE` (bật); `DOC_TOTAL_MISMATCH`, `DOC_INVALID_VAT_RATE`, `XDOC_PAYMENT_EXCEEDS_DEBT` (TẮT cho đến khi xác nhận với dữ liệu thật). Không làm `XDOC_NEGATIVE_STOCK` (chưa có adapter kho) và kiểm tra kỳ khóa sổ (schema chỉ có cột `ID` ở `LockAccount`).
+- Metrics Micrometer qua `AppMetrics`: `rule.evaluation` (nhãn `rule`), `llm.call`, `rag.retrieval` (nhãn `outcome`). Chưa thêm `micrometer-registry-prometheus` nên `/actuator/prometheus` chưa có dữ liệu xuất.
+- Đánh giá offline (`vn.edu.uet.erpai.eval`, profile `eval`): sinh chứng từ tổng hợp cài lỗi có nhãn, precision/recall từng rule SpEL, thông lượng 1000 chứng từ, `RankingMetrics` (Hit@k, MRR) cho RAG; báo cáo Markdown vào `eval/reports/`.
+
+### 13.9. Chưa làm
+Chạy với SQL Server/Ollama/reranker thật (chưa có môi trường), runner RAG trên mô hình thật và đo tỷ lệ đề xuất qua kiểm chứng, rule `XDOC_NEGATIVE_STOCK`, Langfuse/OTel, giảm giá bán hàng (TypeID 340–345 chưa xác định bảng).

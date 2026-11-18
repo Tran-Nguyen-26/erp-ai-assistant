@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import vn.edu.uet.erpai.common.exception.BusinessException;
+import vn.edu.uet.erpai.common.metrics.AppMetrics;
 
 @Component
 public class SpringAiLlmClient implements LlmClient {
@@ -14,11 +15,14 @@ public class SpringAiLlmClient implements LlmClient {
   private final ChatClient chat;
   private final String modelName;
   private final String visionModel;
+  private final AppMetrics metrics;
 
   public SpringAiLlmClient(
       ChatModel chatModel,
       @Value("${spring.ai.ollama.chat.options.model:qwen2.5:7b}") String modelName,
-      @Value("${app.ai.vision-model:qwen2.5vl:7b}") String visionModel) {
+      @Value("${app.ai.vision-model:qwen2.5vl:7b}") String visionModel,
+      AppMetrics metrics) {
+    this.metrics = metrics;
     this.chat = ChatClient.builder(chatModel).build();
     this.modelName = modelName;
     this.visionModel = visionModel;
@@ -26,6 +30,11 @@ public class SpringAiLlmClient implements LlmClient {
 
   @Override
   public <T> T generate(String systemPrompt, String userPrompt, Class<T> outputType) {
+    return metrics.time(
+        "llm.call", () -> doGenerate(systemPrompt, userPrompt, outputType), "kind", "text");
+  }
+
+  private <T> T doGenerate(String systemPrompt, String userPrompt, Class<T> outputType) {
     try {
       return chat.prompt().system(systemPrompt).user(userPrompt).call().entity(outputType);
     } catch (ResourceAccessException e) {

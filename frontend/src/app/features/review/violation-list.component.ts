@@ -13,6 +13,7 @@ import { errorMessage } from '../../core/http-error';
 import { PageResponse } from '../../core/models/page.model';
 import { ViolationResponse, ViolationSummary } from '../../core/models/violation.model';
 import { SeverityChipComponent } from '../../shared/severity-chip.component';
+import { VOUCHER_TYPES } from '../../core/models/voucher-types';
 
 @Component({
   selector: 'app-violation-list',
@@ -158,11 +159,7 @@ export class ViolationListComponent implements OnInit {
   protected severity = '';
   protected checkRef = '';
   protected checkType = 'PURCHASE_INVOICE';
-  protected readonly voucherTypes = [
-    { value: 'PURCHASE_INVOICE', label: 'Hóa đơn mua hàng' },
-    { value: 'SALES_INVOICE', label: 'Hóa đơn bán hàng' },
-    { value: 'PAYMENT', label: 'Phiếu chi' },
-  ];
+  protected readonly voucherTypes = VOUCHER_TYPES;
 
   protected readonly data = signal<PageResponse<ViolationResponse> | null>(null);
   protected readonly summary = signal<ViolationSummary | null>(null);

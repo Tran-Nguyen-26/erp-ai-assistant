@@ -124,3 +124,18 @@ Sổ cái hợp nhất mọi chứng từ: `GeneralLedger` (header dòng sổ, 5
 
 Cần xác nhận khi chạy với dữ liệu thật: (1) `DatePartition` có bằng `Date` của header (đã có truy vấn dự phòng không lọc phân vùng); (2) TypeID bán hàng khác (330–353 hàng bán trả lại/giảm giá/xuất hóa đơn) nằm ở bảng nào; (3) ý nghĩa `SAInvoice.CompanyTaxCode` (hiện dùng MST từ `AccountingObject` làm MST đối tác).
 Rule áp dụng cho cả ba loại: `FLD_*`, `DOC_ACCOUNT_NOT_DETAIL`, `REG_ACCOUNT_REGIME_MISMATCH`; rule mua hàng (`DOC_VAT_*`, `XDOC_DUPLICATE_INVOICE`, `ANM_UNIT_PRICE_OUTLIER`, `REG_CASH_*`) chỉ chạy trên `PURCHASE_INVOICE`.
+
+## 11. Phiếu thu, báo Nợ/Có, hàng trả lại (đã thêm)
+
+Sáu loại chứng từ dùng chung `ErpVoucherKindAdapter` và cùng bộ alias cột (header/lines), xem `sql/erp/<loai>-*.sql`:
+
+| Loại | Bảng | TypeID | Phương thức TT |
+|---|---|---|---|
+| PAYMENT | MCPayment | 110–118 | CASH |
+| RECEIPT | MCReceipt | 100–104 | CASH |
+| BANK_DEBIT | MBTellerPaper | 120–128, 130–135, 140–145 | 14x → CASH, còn lại BANK_TRANSFER |
+| BANK_CREDIT | MBDeposit | 160–164 | BANK_TRANSFER |
+| PURCHASE_RETURN | PPDiscountReturn | 220–222, 230–232 | theo cột |
+| SALES_RETURN | SAReturn | 330–335 | theo cột |
+
+**Chưa xác minh với dữ liệu thật** (SQL được rà thủ công, không chạy được trên SQL Server, không có công cụ kiểm cú pháp T-SQL): tên cột ở các bảng trên, cột hóa đơn ở header/dòng, TypeID 340–345 (giảm giá bán hàng) nằm ở bảng nào, ngữ nghĩa `TotalAmount` (đã gồm thuế hay không — quyết định rule `DOC_TOTAL_MISMATCH`), đơn vị `VATRate` (rule `DOC_INVALID_VAT_RATE`), số dư công nợ 331 (rule `XDOC_PAYMENT_EXCEEDS_DEBT`).

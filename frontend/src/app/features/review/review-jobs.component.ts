@@ -11,6 +11,7 @@ import { AdminApiService } from '../../core/api/admin-api.service';
 import { AuthService } from '../../core/auth.service';
 import { errorMessage } from '../../core/http-error';
 import { ReviewJobResponse } from '../../core/models/admin.model';
+import { VOUCHER_TYPES } from '../../core/models/voucher-types';
 
 @Component({
   selector: 'app-review-jobs',
@@ -86,11 +87,7 @@ export class ReviewJobsComponent implements OnInit, OnDestroy {
   protected readonly jobs = signal<ReviewJobResponse[]>([]);
   protected from = '';
   protected types: string[] = ['PURCHASE_INVOICE'];
-  protected readonly voucherTypes = [
-    { value: 'PURCHASE_INVOICE', label: 'Hóa đơn mua hàng' },
-    { value: 'SALES_INVOICE', label: 'Hóa đơn bán hàng' },
-    { value: 'PAYMENT', label: 'Phiếu chi' },
-  ];
+  protected readonly voucherTypes = VOUCHER_TYPES;
   protected to = '';
   private timer: ReturnType<typeof setInterval> | undefined;
 
