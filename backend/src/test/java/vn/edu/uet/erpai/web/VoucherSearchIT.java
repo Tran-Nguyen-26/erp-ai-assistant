@@ -173,9 +173,19 @@ class VoucherSearchIT extends AbstractPostgresIT {
     org.mockito.Mockito.verify(erp, org.mockito.Mockito.never())
         .listVouchers(any(), anyString(), any(), any(), anyInt(), anyInt(), any());
 
-    // lọc trên tập kết quả: MST khác → rỗng
-    assertThat(search(token, "&hasViolations=true&partnerTaxCode=9999999999").get("items"))
-        .isEmpty();
+    // q lọc phía vi phạm (số chứng từ MH1) nên tổng số vẫn đúng; q không khớp → rỗng và total = 0
+    var matching = search(token, "&hasViolations=true&q=mh");
+    assertThat(matching.get("items").findValuesAsText("entityRef")).contains(R1);
+    var none = search(token, "&hasViolations=true&q=KHONGCO");
+    assertThat(none.get("items")).isEmpty();
+    assertThat(none.get("totalItems").asLong()).isZero();
+    // ký tự đại diện LIKE do người dùng nhập không được hiểu là ký tự đại diện
+    assertThat(search(token, "&hasViolations=true&q=%25").get("items")).isEmpty();
+    // MST + hasViolations chưa hỗ trợ → 422
+    mvc.perform(
+            get("/api/v1/erp/vouchers?periodFrom=2026-10-01&periodTo=2026-10-31&hasViolations=true&partnerTaxCode=0101234567")
+                .header("Authorization", token))
+        .andExpect(status().isUnprocessableEntity());
     // loại chưa hỗ trợ
     mvc.perform(
             get("/api/v1/erp/vouchers?periodFrom=2026-10-01&periodTo=2026-10-31&voucherType=JOURNAL_ENTRY")

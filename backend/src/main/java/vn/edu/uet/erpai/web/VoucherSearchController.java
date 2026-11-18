@@ -5,7 +5,6 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -81,10 +80,14 @@ public class VoucherSearchController {
 
     List<ErpVoucher> vouchers;
     long total;
+    if (hasViolations && partnerTaxCode != null && !partnerTaxCode.isBlank()) {
+      throw new BusinessException(
+          "ERP_FILTER_UNSUPPORTED", "Chưa hỗ trợ kết hợp hasViolations với partnerTaxCode");
+    }
     if (hasViolations) {
       var open =
           violations.openEntityRefs(
-              companyId, type.name(), periodFrom, periodTo, PageRequest.of(safePage, safeSize));
+              companyId, type.name(), periodFrom, periodTo, q, PageRequest.of(safePage, safeSize));
       vouchers = new ArrayList<>();
       for (var ref : open.refs()) {
         try {
@@ -95,8 +98,6 @@ public class VoucherSearchController {
           }
         }
       }
-      var filter = new VoucherFilter(q, partnerTaxCode);
-      vouchers = vouchers.stream().filter(v -> matches(v, filter)).toList();
       total = open.total();
     } else {
       var result =
@@ -138,24 +139,6 @@ public class VoucherSearchController {
             .toList();
     return new PageResponse<>(
         items, safePage, safeSize, total, (int) Math.ceil(total / (double) safeSize));
-  }
-
-  private static boolean matches(ErpVoucher v, VoucherFilter f) {
-    if (!f.partnerTaxCode().isEmpty()
-        && (v.partner() == null || !f.partnerTaxCode().equals(v.partner().taxCode()))) {
-      return false;
-    }
-    if (f.q().isEmpty()) {
-      return true;
-    }
-    var needle = f.q().toLowerCase(Locale.ROOT);
-    return contains(v.voucherNo(), needle)
-        || contains(v.description(), needle)
-        || (v.partner() != null && contains(v.partner().name(), needle));
-  }
-
-  private static boolean contains(String s, String needle) {
-    return s != null && s.toLowerCase(Locale.ROOT).contains(needle);
   }
 
   private static String money(BigDecimal v) {

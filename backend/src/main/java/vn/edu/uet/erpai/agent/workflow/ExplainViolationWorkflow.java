@@ -287,7 +287,10 @@ public class ExplainViolationWorkflow {
   }
 
   private static String normalize(String s) {
+    // PromptSafety đổi < > thành ký tự full-width trong prompt; LLM có thể trích lại dạng đó
     return Normalizer.normalize(s, Normalizer.Form.NFC)
+        .replace('＜', '<')
+        .replace('＞', '>')
         .toLowerCase()
         .replaceAll("\\s+", " ")
         .strip();

@@ -371,7 +371,11 @@ class RuleEngineTest {
   void futureDatedVouchersAreFlaggedWithinTheConfiguredTolerance() {
     var rule = rule("FLD_DATE_IN_FUTURE");
     var evaluator = new SpelRuleEvaluator();
-    assertThat(evaluator.evaluate(rule, onDate(LocalDate.now().plusDays(5), List.of()))).hasSize(1);
+    var flagged = evaluator.evaluate(rule, onDate(LocalDate.now().plusDays(5), List.of()));
+    assertThat(flagged).hasSize(1);
+    assertThat(flagged.get(0).message())
+        .contains(LocalDate.now().plusDays(5).toString())
+        .doesNotContain("{{");
     assertThat(evaluator.evaluate(rule, onDate(LocalDate.now(), List.of()))).isEmpty();
     assertThat(evaluator.evaluate(rule, onDate(LocalDate.now().minusYears(3), List.of())))
         .isEmpty(); // quá khứ không bị coi là lỗi

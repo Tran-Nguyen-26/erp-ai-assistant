@@ -7,7 +7,7 @@ FROM (
     WHERE g.CompanyID = :companyId
       AND g.AccountingObjectID = :partnerId
       AND g.Account LIKE '331%'
-      AND g.PostedDate <= :voucherDate
-      AND g.ReferenceID <> :entityRef
+      AND g.PostedDate < DATEADD(DAY, 1, :voucherDate)
+      AND (g.ReferenceID IS NULL OR g.ReferenceID <> :entityRef)
 ) s
 WHERE :debtPaymentAmount > s.debt

@@ -7,4 +7,4 @@ WHERE h.CompanyID = :companyId
   AND h.[Date] < :periodToExclusive
   AND h.TypeID IN (:typeIds)
   AND (:q = '' OR h.NoFBook LIKE :qLike ESCAPE '\' OR h.Reason LIKE :qLike ESCAPE '\' OR h.AccountingObjectName LIKE :qLike ESCAPE '\')
-  AND (:partnerTaxCode = '' OR ao.TaxCode = :partnerTaxCode)
+  AND (:partnerTaxCode = '' OR h.TaxCode = :partnerTaxCode)

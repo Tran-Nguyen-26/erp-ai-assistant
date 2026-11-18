@@ -223,10 +223,25 @@ public class ViolationService {
 
   @Transactional(readOnly = true)
   public OpenRefs openEntityRefs(
-      String companyId, String entityType, LocalDate from, LocalDate to, Pageable pageable) {
+      String companyId,
+      String entityType,
+      LocalDate from,
+      LocalDate to,
+      String entityNoContains,
+      Pageable pageable) {
+    var like =
+        entityNoContains == null || entityNoContains.isBlank()
+            ? "%"
+            : "%"
+                + entityNoContains
+                    .strip()
+                    .replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_")
+                + "%";
     return new OpenRefs(
-        violations.openEntityRefs(companyId, entityType, OPEN_STATUSES, from, to, pageable),
-        violations.countOpenEntityRefs(companyId, entityType, OPEN_STATUSES, from, to));
+        violations.openEntityRefs(companyId, entityType, OPEN_STATUSES, from, to, like, pageable),
+        violations.countOpenEntityRefs(companyId, entityType, OPEN_STATUSES, from, to, like));
   }
 
   @Transactional(readOnly = true)

@@ -45,7 +45,8 @@ public interface ViolationRepository
 
   @Query(
       "select v.entityRef from Violation v where v.companyId = ?1 and v.entityType = ?2"
-          + " and v.status in ?3 and (v.entityDate is null or (v.entityDate >= ?4 and v.entityDate <= ?5))"
+          + " and v.status in ?3 and v.entityDate >= ?4 and v.entityDate <= ?5"
+          + " and (?6 = '%' or lower(v.entityNo) like lower(?6) escape '\\')"
           + " group by v.entityRef order by max(v.detectedAt) desc, v.entityRef")
   List<String> openEntityRefs(
       String companyId,
@@ -53,17 +54,20 @@ public interface ViolationRepository
       Collection<ViolationStatus> statuses,
       java.time.LocalDate from,
       java.time.LocalDate to,
+      String entityNoLike,
       Pageable pageable);
 
   @Query(
       "select count(distinct v.entityRef) from Violation v where v.companyId = ?1 and v.entityType = ?2"
-          + " and v.status in ?3 and (v.entityDate is null or (v.entityDate >= ?4 and v.entityDate <= ?5))")
+          + " and v.status in ?3 and v.entityDate >= ?4 and v.entityDate <= ?5"
+          + " and (?6 = '%' or lower(v.entityNo) like lower(?6) escape '\\')")
   long countOpenEntityRefs(
       String companyId,
       String entityType,
       Collection<ViolationStatus> statuses,
       java.time.LocalDate from,
-      java.time.LocalDate to);
+      java.time.LocalDate to,
+      String entityNoLike);
 
   @Query(
       "select v.severity, count(v) from Violation v where v.reviewJobId = ?1 group by v.severity")
