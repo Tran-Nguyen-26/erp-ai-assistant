@@ -2,7 +2,7 @@
 
 | Thuộc tính | Giá trị |
 |---|---|
-| Phiên bản tài liệu | 1.0 |
+| Phiên bản tài liệu | 1.1 (đã đối chiếu với mã nguồn) |
 | Trạng thái | Draft |
 | Phạm vi | Toàn bộ hệ thống: backend, frontend, hạ tầng AI, CSDL |
 | Tài liệu liên quan | [`README.md`](../README.md), [`CLAUDE.md`](../CLAUDE.md), [`api-spec.md`](api-spec.md) |
@@ -23,6 +23,7 @@
 10. [Bảo mật](#10-bảo-mật)
 11. [Yêu cầu phi chức năng & triển khai](#11-yêu-cầu-phi-chức-năng--triển-khai)
 12. [Quyết định kiến trúc (ADR)](#12-quyết-định-kiến-trúc-adr)
+13. [Đối chiếu thiết kế ↔ triển khai](#13-đối-chiếu-thiết-kế--triển-khai)
 
 ---
 
@@ -1081,5 +1082,53 @@ flowchart TB
 | 0005 | PostgreSQL + pgvector làm vector store | Một DB cho cả nghiệp vụ và vector, hỗ trợ hybrid search bằng SQL | Qdrant, Elasticsearch |
 | 0006 | LLM local (Ollama) mặc định | Bảo mật dữ liệu, không tốn phí API | Chỉ dùng Cloud API |
 | 0007 | Workflow tường minh thay vì agent tự trị | Hành vi dự đoán được, test được, giải trình được | Agent ReAct tự do cho mọi tác vụ |
+| 0008 | Chat dùng vòng lặp công cụ tường minh (JSON `{tool,args}`) thay vì `@Tool` của Spring AI | Kiểm soát số bước, phân quyền công cụ trước khi vào prompt, dễ test bằng LLM giả | `@Tool` + vòng lặp nội bộ của Spring AI |
+| 0009 | Trích xuất hóa đơn bằng LLM chỉ chạy với LLM local | Ảnh hóa đơn không che PII được; che MST/tên sẽ phá chính dữ liệu cần trích | Gửi ảnh lên LLM cloud sau khi che |
+| 0010 | Rule SQL chạy qua danh sách tham số cho phép + tên file `rule-*.sql` | Rule liên chứng từ vẫn thuần đọc, chống SQL injection và đọc file tùy ý | Cho rule tự viết SQL tự do |
+| 0011 | Khóa hóa đơn bán hàng dạng `GUID@yyyy-MM-dd` | PK `SAInvoice(Date, ID)` đánh index/phân vùng theo ngày; tra theo ID đơn lẻ sẽ quét bảng 12 triệu dòng | Chỉ dùng GUID |
 
 Chi tiết từng ADR: `docs/adr/NNNN-*.md`.
+
+---
+
+## 13. Đối chiếu thiết kế ↔ triển khai
+
+Phần này ghi các điểm triển khai **khác hoặc vượt** so với thiết kế ở các mục trên. Mục nào không nhắc ở đây là đúng như thiết kế.
+
+### 13.1. Module và phụ thuộc
+- `common.llm` (`LlmClient`, `SpringAiLlmClient`), `common.pii`, `common.storage`, `common.export` (XLSX/PDF) là gói trung lập; `agent` và `entry` cùng dùng `LlmClient` mà không phụ thuộc lẫn nhau.
+- Ranh giới module được ArchUnit kiểm tra (`ModuleDependencyTest`): không dùng chéo `repository`/`domain` của module khác; hễ vi phạm thì chuyển kiểu dùng chung (enum, DTO) ra gói `service` công khai.
+- `rule.review` chứa job rà soát hàng loạt (RabbitMQ: exchange `review.exchange`, queue `review.batch`, DLQ `review.batch.dlq`, retry 3 lần).
+
+### 13.2. Rule engine (§6)
+- Hai evaluator: `SpelRuleEvaluator` (hàm thuần, ngữ cảnh khóa: không `T(...)`, không constructor, method chỉ trên BigDecimal/String/Collection/Map) và `SqlRuleEvaluator` (có hàng trả về = vi phạm; `forEach: lines` chạy theo từng dòng).
+- Rule khai báo thêm `entityTypes` (nhiều loại chứng từ) và `needs: [ACCOUNTS]` (dữ liệu tham chiếu nạp một lần/lần đánh giá, cache 10 phút).
+- Rule đang có: `FLD_REQUIRED_FIELDS`, `FLD_TAX_CODE_FORMAT`, `DOC_ACCOUNT_NOT_DETAIL`, `DOC_VAT_AMOUNT_MISMATCH` (tắt: chờ xác nhận đơn vị `VATRate`), `XDOC_DUPLICATE_INVOICE`, `REG_ACCOUNT_REGIME_MISMATCH`, `REG_CASH_PAYMENT_THRESHOLD` (tắt: chờ xác nhận ngưỡng pháp lý), `ANM_UNIT_PRICE_OUTLIER`. Chưa có `DOC_DEBIT_CREDIT_UNBALANCED`, `DOC_TOTAL_MISMATCH`, `DOC_INVALID_VAT_RATE`, `FLD_DATE_OUT_OF_PERIOD`, `XDOC_PAYMENT_EXCEEDS_DEBT`, `XDOC_NEGATIVE_STOCK`.
+- Cấu hình admin (bật/tắt, mức độ, tham số) giữ nguyên khi YAML đổi; `POST /rules/{id}/test` chạy thử không lưu.
+
+### 13.3. RAG (§7)
+- `content_tsv` dùng hàm `immutable_unaccent` (migration 010) vì `unaccent()` không IMMUTABLE.
+- LLM trích dẫn theo **số thứ tự đoạn** (`index`) thay vì `chunkId` (mô hình nhỏ hay sai chuỗi hex); backend ánh xạ sang `chunkId` và kiểm tra `quote` là chuỗi con của đoạn.
+- Định dạng nạp: pdf (có lớp chữ), docx (đọc `word/document.xml`, chặn XXE/zip bomb), txt, md. Tài liệu có `PATCH` (ngày hiệu lực đổi có tác dụng ngay) và `DELETE` (lưu trữ + xóa chunk).
+
+### 13.4. Agent (§8)
+- Công cụ (`agent.tool`): `query_erp_vouchers`, `get_erp_voucher`, `run_rules`, `get_violation`, `list_violations`, `search_knowledge`, `create_proposal` (chỉ CHIEF/ADMIN). Mô tả tham số do LLM sinh ra luôn bị validate lại.
+- Chat: mỗi bước LLM trả `{tool,args}` hoặc `final`; dừng khi lặp lại cùng một lời gọi hoặc hết `app.agent.max-steps`; câu trả lời cuối được stream; nếu truy xuất tài liệu mà không đủ căn cứ thì từ chối, không gọi LLM.
+- Với `AI_PROVIDER` ≠ ollama, prompt được che (MST, số tài khoản, tên đối tác) và câu trả lời được khôi phục — nên không stream từng token trong chế độ này.
+- Giải thích lỗi trả JSON (mặc định) hoặc SSE (`stage` → `result`); đề xuất sửa do LLM gợi ý chỉ lưu khi qua kiểm chứng rule.
+
+### 13.5. Nhập liệu (§5.1) — module `entry`
+- Nguồn: XML Thông tư 78 (tất định, độ tin cậy 1.0), PDF/ảnh/văn bản (LLM local, độ tin cậy tối đa 0.95).
+- Độ tin cậy LLM = điểm của mô hình hạ xuống nếu tổng dòng ≠ tiền hàng, tiền hàng + thuế ≠ thanh toán, hoặc MST sai định dạng/chữ số kiểm tra. Trường dưới `app.entry.min-confidence` được trả trong `lowConfidenceFields`.
+- Gợi ý định khoản: mặc định tất định (156/1331 – 331); với LLM local + danh mục tài khoản, LLM chọn tài khoản Nợ **chỉ trong danh mục công ty**.
+- Nháp chạy qua cùng rule engine như chứng từ ERP; `confirm` chốt dữ liệu để xuất (JSON/XLSX), không ghi ERP.
+
+### 13.6. Loại chứng từ ERP (§9.2)
+- Có adapter: hóa đơn mua hàng (`PPInvoice`), hóa đơn bán hàng (`SAInvoice`), phiếu chi (`MCPayment`). Mọi luồng dùng `ErpQueryService.getVoucher/listVouchers/countVouchers/listVoucherIds(type, …)`. Chi tiết ánh xạ và điểm cần xác nhận với dữ liệu thật: `docs/erp-mapping.md`.
+
+### 13.7. Phê duyệt và xuất (§5.5)
+- Proposal chỉ có `UPDATE_FIELD` (đường dẫn như `lines[0].vatAmount`, `partner.taxCode`); kiểm chứng = áp lên bản sao rồi chạy lại **mọi** rule, từ chối nếu vi phạm gốc còn hoặc xuất hiện lỗi ERROR mới.
+- Xuất phiếu đề nghị: CSV, XLSX, PDF (nhúng DejaVu Sans). `ErpWriteBackPort` mặc định `ExportOnlyWriteBack`.
+
+### 13.8. Chưa làm
+Báo Nợ/Báo Có ngân hàng và hàng bán trả lại, bộ đánh giá (`eval`), rule `REG`/`ANM` còn lại, lọc `q/partnerTaxCode/openViolationCount` ở `GET /erp/vouchers`, Langfuse/OTel trace, kiểm thử với SQL Server/Ollama/reranker thật.

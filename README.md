@@ -28,13 +28,13 @@ Trong các hệ thống ERP kế toán, sai sót khi nhập liệu (sai thuế s
 ## 2. Chức năng chính
 
 ### 2.1. Hỗ trợ nhập liệu
-- Nhập từ **hóa đơn điện tử XML**, **ảnh/PDF** (OCR bằng LLM vision) hoặc **mô tả bằng lời**.
-- Tự điền form chứng từ, gợi ý **định khoản Nợ/Có**, hiển thị độ tin cậy từng trường.
-- Kiểm tra rule ngay khi nhập, trước khi lưu.
+- Nhập từ **hóa đơn điện tử XML** (đọc tất định), **ảnh/PDF** (LLM vision) hoặc **mô tả bằng lời** (LLM). Các nguồn dùng LLM chỉ chạy với LLM local (`AI_PROVIDER=ollama`).
+- Tự điền form chứng từ, gợi ý **định khoản Nợ/Có** (AI chọn tài khoản trong danh mục của công ty), hiển thị độ tin cậy từng trường và đánh dấu trường cần kiểm tra.
+- Kiểm tra rule ngay khi nhập (gồm **trùng hóa đơn** so với ERP), xuất nháp ra JSON/Excel.
 
 ### 2.2. Rà soát & phát hiện sai lệch
 - Rà soát **tức thời** từng chứng từ và rà soát **hàng loạt** theo kỳ (chạy nền qua RabbitMQ).
-- 5 nhóm rule: trường dữ liệu (`FLD`), nội chứng từ (`DOC`), liên chứng từ (`XDOC`), quy định (`REG`), bất thường (`ANM`).
+- 5 nhóm rule: trường dữ liệu (`FLD`), nội chứng từ (`DOC`), liên chứng từ (`XDOC`), quy định (`REG`), bất thường (`ANM`); áp dụng cho hóa đơn mua hàng, hóa đơn bán hàng và phiếu chi. Danh sách rule: `docs/architecture.md` §13.2.
 - Phân loại mức độ: `ERROR` / `WARNING` / `INFO`.
 
 ### 2.3. Giải thích & đề xuất xử lý
@@ -43,7 +43,7 @@ Trong các hệ thống ERP kế toán, sai sót khi nhập liệu (sai thuế s
 
 ### 2.4. Duyệt đề xuất
 - So sánh **trước/sau**, Chấp nhận / Từ chối kèm lý do, phân quyền theo vai trò.
-- Đề xuất đã duyệt được xuất thành **phiếu đề nghị điều chỉnh** (không tự ghi vào ERP).
+- Đề xuất đã duyệt được xuất thành **phiếu đề nghị điều chỉnh** (CSV, Excel, PDF; không tự ghi vào ERP).
 
 ### 2.5. Trợ lý hỏi đáp nghiệp vụ
 - Hỏi đáp về quy định, cách dùng phần mềm, và dữ liệu ("Tháng 10 có bao nhiêu hóa đơn chưa thanh toán?").
@@ -178,6 +178,7 @@ AI_PROVIDER=ollama                      # ollama | openai | anthropic
 OLLAMA_BASE_URL=http://localhost:11434
 AI_CHAT_MODEL=qwen2.5:7b
 AI_EMBEDDING_MODEL=bge-m3
+AI_VISION_MODEL=qwen2.5vl:7b          # nhập liệu từ ảnh/PDF scan (chỉ với LLM local)
 AI_EMBEDDING_DIMENSIONS=1024
 RERANKER_BASE_URL=http://localhost:8081
 # Chỉ cần khi AI_PROVIDER khác ollama (dữ liệu sẽ được mask trước khi gửi)
@@ -217,6 +218,7 @@ Tải model cho Ollama (lần đầu, ~5 GB):
 ```bash
 docker compose exec ollama ollama pull qwen2.5:7b
 docker compose exec ollama ollama pull bge-m3
+docker compose exec ollama ollama pull qwen2.5vl:7b   # chỉ cần nếu dùng nhập liệu từ ảnh/PDF scan
 docker compose exec ollama ollama list
 ```
 
@@ -293,8 +295,11 @@ docker compose --profile app up -d --build
 
 ## 7. Kiểm thử & đánh giá
 
+Backend cần **JDK 21** (`export JAVA_HOME=...`). Integration test cần Docker (Testcontainers: PostgreSQL+pgvector, RabbitMQ).
+
 ```bash
-cd backend
+cd frontend && npm run lint && npm run build && npm test   # npm test cần Chrome (ChromeHeadless)
+cd ../backend
 ./mvnw test                                           # Unit test
 ./mvnw verify                                         # Unit + integration test (cần Docker)
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev,eval   # Đánh giá rule & RAG → eval/reports/
@@ -320,6 +325,9 @@ Các chỉ số đánh giá chính:
 | Ollama trả lời rất chậm / bị kill | Thiếu RAM — dùng model nhỏ hơn (`qwen2.5:3b`) hoặc tăng RAM cho Docker |
 | `expected 1024 dimensions` khi ingest | `AI_EMBEDDING_DIMENSIONS` không khớp model embedding; đổi model thì phải tạo lại bảng vector & re-index |
 | Cổng 5432 / 4200 bị chiếm | Đổi cổng trong `.env` / `docker-compose.yml`, hoặc dừng tiến trình đang chiếm |
+| `npm i` lỗi `ENOENT mkdir node_modules/...` | Gặp trên ổ NTFS/fuseblk: build ở thư mục thuộc ổ Linux (copy `frontend/` sang rồi `npm ci`) |
+| Nhập liệu ảnh/PDF scan trả 422 `ENTRY_LLM_EXTRACTION_REQUIRES_LOCAL_LLM` | Chỉ chạy với `AI_PROVIDER=ollama`; cần `ollama pull` mô hình vision |
+| Docker Engine mới làm Testcontainers lỗi "client version 1.32 is too old" | Đã đặt `api.version=1.44` trong Failsafe (`backend/pom.xml`) |
 | IntelliJ chậm, hết RAM | Tắt bớt plugin (SonarLint), tăng `-Xmx` cho IDE, hạn chế chạy Ollama song song khi build |
 
 ---
@@ -330,7 +338,8 @@ Các chỉ số đánh giá chính:
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Quy chuẩn code, cấu trúc thư mục, naming, lệnh build/test |
 | [`docs/architecture.md`](docs/architecture.md) | Kiến trúc chi tiết, luồng dữ liệu, thiết kế CSDL, thiết kế Agent & RAG |
-| [`docs/api-spec.md`](docs/api-spec.md) | Đặc tả RESTful API |
+| [`docs/api-spec.md`](docs/api-spec.md) | Đặc tả RESTful API (có phụ lục trạng thái triển khai) |
+| [`docs/erp-mapping.md`](docs/erp-mapping.md) | Ánh xạ cột ERP ↔ canonical model, điểm cần xác nhận với dữ liệu thật |
 | `docs/adr/` | Các quyết định kiến trúc (Architecture Decision Records) |
 
 ---
