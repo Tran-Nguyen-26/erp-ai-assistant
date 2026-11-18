@@ -25,4 +25,11 @@ class VoucherFilterTest {
     assertThat(p.getValue("qLike")).isEqualTo("%50\\%\\_\\[a]\\\\%");
     assertThat(p.getValue("partnerTaxCode")).isEqualTo("0101234567");
   }
+
+  @Test
+  void overlongInputIsTruncated() {
+    var f = new VoucherFilter("x".repeat(500), "9".repeat(50));
+    assertThat(f.q()).hasSize(100);
+    assertThat(f.partnerTaxCode()).hasSize(20);
+  }
 }
